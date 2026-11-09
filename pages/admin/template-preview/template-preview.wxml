@@ -1,0 +1,14 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <block wx:else>
+    <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
+    <block wx:elif="{{template}}">
+      <view class="card">
+        <view class="card-title">{{tplName}}</view>
+        <text class="weak">{{statusText}} · 以下为成员端渲染效果，可实际操作但不保存</text>
+        <view class="section-gap"></view>
+        <dynamic-form id="form" template="{{template}}" />
+      </view>
+    </block>
+  </block>
+</view>

@@ -1,0 +1,75 @@
+.head-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-row {
+  display: flex;
+  margin-top: 24rpx;
+}
+
+.stat-box {
+  flex: 1;
+  text-align: center;
+}
+
+.stat-num {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 700;
+}
+
+.stat-ok {
+  color: var(--ok);
+}
+
+.stat-warn {
+  color: var(--warn);
+}
+
+.stat-brand {
+  color: var(--brand);
+}
+
+.stat-label {
+  display: block;
+  color: var(--text-weak);
+  font-size: 22rpx;
+  margin-top: 4rpx;
+}
+
+.rate-bar {
+  height: 12rpx;
+  background: #eef0f4;
+  border-radius: 999rpx;
+  margin-top: 24rpx;
+  overflow: hidden;
+}
+
+.rate-fill {
+  height: 100%;
+  background: var(--brand);
+  border-radius: 999rpx;
+}
+
+.miss-item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 18rpx 0;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.miss-item:last-of-type {
+  border-bottom: none;
+}
+
+.miss-name {
+  margin-right: auto;
+  font-size: 28rpx;
+}
+
+.urge-btn {
+  margin-top: 24rpx;
+}

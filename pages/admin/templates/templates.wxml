@@ -1,0 +1,36 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{denied}}" class="center-page">
+    <view class="login-title">无权限</view>
+    <text class="sub">仅管理员 / 负责人可管理模板</text>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
+    <button class="btn-primary new-btn" bindtap="onCreate">＋ 新建模板</button>
+
+    <view wx:if="{{groups.length === 0 && !errorText}}" class="empty">还没有模板，先创建一个吧</view>
+
+    <view class="card" wx:for="{{groups}}" wx:key="templateId" wx:for-item="g">
+      <view class="card-title">{{g.name}}</view>
+      <view class="ver-item" wx:for="{{g.versions}}" wx:key="id" wx:for-item="v">
+        <view class="ver-line">
+          <text class="ver-no">v{{v.version}}</text>
+          <text class="tag {{v.statusClass}}">{{v.statusText}}</text>
+          <text class="weak">{{v.fieldCount}} 字段 · {{v.entryMode}}模式{{v.effectiveFrom ? ' · 生效 ' + v.effectiveFrom : ''}}</text>
+        </view>
+        <view class="ver-actions">
+          <text class="act act-edit" wx:if="{{v.status === 'draft'}}" data-id="{{v.id}}" bindtap="onEdit">编辑</text>
+          <text class="act" data-id="{{v.id}}" bindtap="onPreview">预览</text>
+          <text class="act act-pub" wx:if="{{v.status === 'draft'}}" data-id="{{v.id}}" bindtap="onPublish">发布</text>
+          <text class="act" wx:if="{{v.status === 'published'}}" data-id="{{v.id}}" bindtap="onNewVersion">发新版本</text>
+          <text class="act act-arch" wx:if="{{v.status === 'published'}}" data-id="{{v.id}}" bindtap="onArchive">停用</text>
+          <text class="act act-del" wx:if="{{v.status === 'draft'}}" data-id="{{v.id}}" bindtap="onDelete">删除</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-gap"></view>
+    <text class="weak rule-tip">规则：fieldKey 发布后不可改语义，改字段请发布新版本；历史统计不受影响。</text>
+  </block>
+</view>

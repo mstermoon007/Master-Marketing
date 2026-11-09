@@ -1,0 +1,247 @@
+.filter-row {
+  display: flex;
+  gap: 20rpx;
+  margin-bottom: 16rpx;
+}
+
+.filter-item {
+  flex: 1;
+}
+
+.picker-box {
+  background: #f4f6fa;
+  border-radius: 12rpx;
+  padding: 16rpx 22rpx;
+  font-size: 28rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.arrow {
+  color: var(--text-weak);
+}
+
+.stat-row {
+  display: flex;
+}
+
+.stat-box {
+  flex: 1;
+  text-align: center;
+}
+
+.stat-num {
+  display: block;
+  font-size: 38rpx;
+  font-weight: 700;
+}
+
+.stat-ok {
+  color: var(--ok);
+}
+
+.stat-brand {
+  color: var(--brand);
+}
+
+.stat-label {
+  display: block;
+  color: var(--text-weak);
+  font-size: 22rpx;
+  margin-top: 4rpx;
+}
+
+.bar-item {
+  margin-bottom: 24rpx;
+}
+
+.bar-line {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8rpx;
+}
+
+.bar-label {
+  font-size: 26rpx;
+  color: var(--text-sub);
+}
+
+.bar-value {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.bar-track {
+  height: 14rpx;
+  background: #eef0f4;
+  border-radius: 999rpx;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--brand);
+  border-radius: 999rpx;
+}
+
+.member-row {
+  padding: 20rpx 0;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.member-row:last-child {
+  border-bottom: none;
+}
+
+.member-head {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
+}
+
+.member-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.member-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.cell {
+  background: #f8fafc;
+  border-radius: 10rpx;
+  padding: 10rpx 20rpx;
+  min-width: 140rpx;
+}
+
+.cell-label {
+  display: block;
+  font-size: 22rpx;
+  color: var(--text-weak);
+}
+
+.cell-value {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+/* 近 7 日趋势柱状图 */
+.trend-wrap {
+  margin-top: 8rpx;
+}
+
+.trend-chart {
+  display: flex;
+  align-items: flex-end;
+  height: 260rpx;
+  gap: 16rpx;
+  padding: 0 8rpx;
+}
+
+.trend-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.trend-val {
+  font-size: 22rpx;
+  color: var(--text-sub);
+  margin-bottom: 6rpx;
+}
+
+.trend-bar {
+  width: 100%;
+  max-width: 56rpx;
+  background: linear-gradient(180deg, #6a9bff, #4a7cf7);
+  border-radius: 10rpx 10rpx 4rpx 4rpx;
+  min-height: 8rpx;
+}
+
+.trend-axis {
+  display: flex;
+  gap: 16rpx;
+  padding: 8rpx 8rpx 0;
+  border-top: 2rpx solid var(--line);
+  margin-top: 4rpx;
+}
+
+.trend-date {
+  flex: 1;
+  text-align: center;
+  font-size: 20rpx;
+  color: var(--text-weak);
+}
+
+/* 成员对比排名 */
+.rank-item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 16rpx 0;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.rank-item:last-of-type {
+  border-bottom: none;
+}
+
+.rank-no {
+  width: 44rpx;
+  height: 44rpx;
+  line-height: 44rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #f4f6fa;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: var(--text-sub);
+  flex-shrink: 0;
+}
+
+.rank-top {
+  background: linear-gradient(135deg, #4a7cf7, #6a9bff);
+  color: #fff;
+}
+
+.rank-name {
+  width: 110rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rank-track {
+  flex: 1;
+  height: 18rpx;
+  background: #eef0f4;
+  border-radius: 999rpx;
+  overflow: hidden;
+}
+
+.rank-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4a7cf7, #6a9bff);
+  border-radius: 999rpx;
+}
+
+.rank-value {
+  width: 120rpx;
+  text-align: right;
+  font-size: 26rpx;
+  font-weight: 600;
+  flex-shrink: 0;
+}

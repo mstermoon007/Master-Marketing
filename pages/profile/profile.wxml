@@ -1,0 +1,48 @@
+<view class="page">
+  <view wx:if="{{authState === 'checking'}}" class="empty">加载中…</view>
+
+  <!-- 未登录 -->
+  <block wx:elif="{{!signedIn}}">
+    <view class="center-page">
+      <view class="login-title">未登录</view>
+      <button class="btn-primary" bindtap="backHome">去登录</button>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="card">
+      <view class="me-name">{{member ? member.name : ''}}</view>
+      <view class="me-role">
+        <text class="tag tag-brand">{{member && member.role === 'owner' ? '负责人' : (member && member.role === 'manager' ? '管理员' : '成员')}}</text>
+        <text class="sub" wx:if="{{team}}">{{team.name}}</text>
+      </view>
+      <view class="invite-line" wx:if="{{team}}">
+        <text class="weak">邀请码：{{inviteCode}}</text>
+        <text class="tag tag-gray" bindtap="copyInvite">复制</text>
+      </view>
+    </view>
+
+    <!-- 管理入口 -->
+    <view class="card" wx:if="{{isManager}}">
+      <view class="card-title">管理功能</view>
+      <view class="menu-item" bindtap="goDashboard"><text>今日看板</text><text class="menu-arrow">›</text></view>
+      <view class="menu-item" bindtap="goTemplates"><text>模板管理</text><text class="menu-arrow">›</text></view>
+      <view class="menu-item" bindtap="goReports"><text>报表中心</text><text class="menu-arrow">›</text></view>
+      <view class="menu-item" bindtap="goMembers"><text>成员管理</text><text class="menu-arrow">›</text></view>
+    </view>
+
+    <!-- 团队配置（owner） -->
+    <view class="card" wx:if="{{member && member.role === 'owner'}}">
+      <view class="menu-item">
+        <text>普通成员可见团队汇总</text>
+        <switch checked="{{memberSeeTeamTotal}}" bindchange="toggleTeamTotal" color="#4a7cf7" />
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{!team}}">
+      <view class="menu-item" bindtap="goTeamPage"><text>创建 / 加入团队</text><text class="menu-arrow">›</text></view>
+    </view>
+
+    <button class="btn-danger-ghost signout-btn" bindtap="doSignOut">退出登录</button>
+  </block>
+</view>

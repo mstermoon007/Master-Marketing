@@ -1,0 +1,54 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{denied}}" class="center-page">
+    <view class="login-title">无权限</view>
+    <text class="sub">仅管理员 / 负责人可查看看板</text>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
+
+    <view class="card">
+      <view class="head-line">
+        <view class="card-title">今日看板 {{todayText}}</view>
+        <text class="tag tag-gray" bindtap="refresh">刷新</text>
+      </view>
+      <view wx:if="{{!hasTemplate}}" class="empty">当前没有生效模板，请先到模板管理发布</view>
+      <text class="weak" wx:else>生效模板：{{templateName}}</text>
+
+      <view class="stat-row" wx:if="{{hasTemplate}}">
+        <view class="stat-box">
+          <text class="stat-num">{{shouldCount}}</text>
+          <text class="stat-label">应提交</text>
+        </view>
+        <view class="stat-box">
+          <text class="stat-num stat-ok">{{submittedCount}}</text>
+          <text class="stat-label">已提交</text>
+        </view>
+        <view class="stat-box">
+          <text class="stat-num stat-warn">{{draftCount}}</text>
+          <text class="stat-label">草稿</text>
+        </view>
+        <view class="stat-box">
+          <text class="stat-num stat-brand">{{rateText}}</text>
+          <text class="stat-label">提交率</text>
+        </view>
+      </view>
+
+      <view class="rate-bar" wx:if="{{hasTemplate}}">
+        <view class="rate-fill" style="width: {{ratePercent}}%"></view>
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{hasTemplate}}">
+      <view class="card-title">未提交名单（{{missing.length}}）</view>
+      <view wx:if="{{missing.length === 0}}" class="empty">今日已全部提交 🎉</view>
+      <view class="miss-item" wx:for="{{missing}}" wx:key="userId">
+        <text class="miss-name">{{item.name}}</text>
+        <text class="tag tag-warn" wx:if="{{item.draft}}">草稿</text>
+        <text class="tag tag-gray" wx:else>未提交</text>
+      </view>
+      <button class="btn-primary urge-btn" bindtap="copyUrgeText">一键复制催填文案</button>
+    </view>
+  </block>
+</view>

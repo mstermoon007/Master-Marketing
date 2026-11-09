@@ -1,0 +1,38 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{denied}}" class="center-page">
+    <view class="login-title">无权限</view>
+    <text class="sub">仅管理员 / 负责人可管理成员</text>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
+
+    <view class="card invite-card">
+      <view class="invite-line">
+        <view>
+          <text class="card-title">邀请成员</text>
+          <text class="weak">成员打开小程序，在「加入团队」输入邀请码即可加入</text>
+        </view>
+        <button class="btn-ghost invite-btn" bindtap="copyInvite">复制邀请码</button>
+      </view>
+      <view class="invite-code">{{inviteCode}}</view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">成员（{{members.length}}）</view>
+      <view class="member-row" wx:for="{{members}}" wx:key="id">
+        <view class="member-info">
+          <text class="member-name">{{item.name}}</text>
+          <text class="tag {{item.active ? 'tag-ok' : 'tag-gray'}}">{{item.active ? '启用' : '停用'}}</text>
+        </view>
+        <text class="weak">{{roleLabels[item.role]}} · {{item.joinedAt}} 加入</text>
+        <view class="member-ops">
+          <text class="act" wx:if="{{isOwner && item.role !== 'owner'}}" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="changeRole">改角色</text>
+          <text class="act" wx:if="{{item.role !== 'owner'}}" data-id="{{item.id}}" data-active="{{item.active ? '1' : '0'}}" bindtap="toggleStatus">{{item.active ? '停用' : '启用'}}</text>
+          <text class="act act-del" wx:if="{{isOwner && item.role !== 'owner'}}" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="removeOne">移除</text>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

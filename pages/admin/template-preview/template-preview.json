@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "模板预览",
+  "usingComponents": {
+    "dynamic-form": "../../../components/dynamic-form/dynamic-form"
+  }
+}

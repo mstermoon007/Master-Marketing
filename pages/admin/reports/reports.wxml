@@ -1,0 +1,110 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{denied}}" class="center-page">
+    <view class="login-title">无权限</view>
+    <text class="sub">仅管理员 / 负责人可查看报表</text>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
+
+    <view class="card">
+      <view class="filter-row">
+        <picker class="filter-item" mode="selector" range="{{periodOptions}}" bindchange="onPeriod">
+          <view class="picker-box"><text>{{periodOptions[periodIndex]}}</text><text class="arrow">›</text></view>
+        </picker>
+        <picker class="filter-item" mode="date" value="{{date}}" bindchange="onDate">
+          <view class="picker-box"><text>{{date}}</text><text class="arrow">›</text></view>
+        </picker>
+      </view>
+      <text class="weak">统计范围：{{rangeText}}</text>
+    </view>
+
+    <view wx:if="{{!hasTemplate}}" class="card"><view class="empty">当前没有生效模板</view></view>
+
+    <block wx:elif="{{summary}}">
+      <view class="card">
+        <view class="stat-row">
+          <view class="stat-box">
+            <text class="stat-num">{{summary.shouldCount}}</text>
+            <text class="stat-label">应提交</text>
+          </view>
+          <view class="stat-box">
+            <text class="stat-num stat-ok">{{summary.submittedCount}}</text>
+            <text class="stat-label">已提交</text>
+          </view>
+          <view class="stat-box">
+            <text class="stat-num stat-brand">{{summary.rowCount}}</text>
+            <text class="stat-label">成果条数</text>
+          </view>
+          <view class="stat-box">
+            <text class="stat-num">{{summary.rateText}}</text>
+            <text class="stat-label">提交率</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="card">
+        <view class="card-title">{{trendTitle}}</view>
+        <view wx:if="{{trend.length === 0}}" class="empty">暂无数据</view>
+        <view class="trend-wrap" wx:else>
+          <view class="trend-chart">
+            <view class="trend-col" wx:for="{{trend}}" wx:key="dateLabel">
+              <text class="trend-val">{{item.value}}</text>
+              <view class="trend-bar" style="height: {{item.h}}%"></view>
+            </view>
+          </view>
+          <view class="trend-axis">
+            <text wx:for="{{trend}}" wx:key="dateLabel" class="trend-date">{{item.dateLabel}}</text>
+          </view>
+          <text class="weak">柱下人数为当日已提交成员数；今日数据实时更新</text>
+        </view>
+      </view>
+
+      <view class="card" wx:if="{{memberRank.length > 0}}">
+        <view class="card-title">{{rankTitle}}</view>
+        <view class="rank-item" wx:for="{{memberRank}}" wx:key="name">
+          <text class="rank-no {{item.top ? 'rank-top' : ''}}">{{item.rank}}</text>
+          <text class="rank-name">{{item.name}}</text>
+          <view class="rank-track">
+            <view class="rank-fill" style="width: {{item.percent}}%"></view>
+          </view>
+          <text class="rank-value">{{item.value}}{{item.unit}}</text>
+        </view>
+        <text class="weak">按主聚合字段降序排名，未提交成员计入 0 值</text>
+      </view>
+
+      <view class="card" wx:if="{{fields.length > 0}}">
+        <view class="card-title">聚合字段统计</view>
+        <view class="bar-item" wx:for="{{fields}}" wx:key="fieldKey">
+          <view class="bar-line">
+            <text class="bar-label">{{item.label}}</text>
+            <text class="bar-value">{{item.value}}{{item.unit}}</text>
+          </view>
+          <view class="bar-track">
+            <view class="bar-fill" style="width: {{item.percent}}%"></view>
+          </view>
+        </view>
+        <text class="weak">聚合方式：求和 / 平均 / 计数，由模板聚合配置决定</text>
+      </view>
+
+      <view class="card">
+        <view class="card-title">成员明细</view>
+        <view wx:if="{{memberRows.length === 0}}" class="empty">暂无数据</view>
+        <view class="member-row" wx:for="{{memberRows}}" wx:key="userId">
+          <view class="member-head">
+            <text class="member-name">{{item.name}}</text>
+            <text class="tag {{item.submitted ? 'tag-ok' : 'tag-gray'}}">{{item.submitted ? '已提交' : '未提交'}}</text>
+            <text class="weak">{{item.rowCount}} 条</text>
+          </view>
+          <view class="member-cells" wx:if="{{item.cells.length > 0}}">
+            <view class="cell" wx:for="{{item.cells}}" wx:key="label" wx:for-item="c">
+              <text class="cell-label">{{c.label}}</text>
+              <text class="cell-value">{{c.text}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </block>
+  </block>
+</view>

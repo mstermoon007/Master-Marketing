@@ -1,0 +1,128 @@
+/* 全局样式：浅色主题 */
+page {
+  --brand: #4a7cf7;
+  --brand-weak: #eef3ff;
+  --text: #1f2430;
+  --text-sub: #6b7385;
+  --text-weak: #9aa2b1;
+  --bg: #f5f7fa;
+  --card: #ffffff;
+  --line: #e8ecf2;
+  --ok: #18a058;
+  --warn: #e6a23c;
+  --danger: #e5545c;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 28rpx;
+  line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+}
+
+.page {
+  padding: 24rpx;
+  box-sizing: border-box;
+  min-height: 100vh;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 20rpx;
+  padding: 28rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 10rpx rgba(31, 36, 48, 0.04);
+}
+
+.card-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 20rpx;
+}
+
+.sub {
+  color: var(--text-sub);
+  font-size: 26rpx;
+}
+
+.weak {
+  color: var(--text-weak);
+  font-size: 24rpx;
+}
+
+.btn-primary {
+  background: var(--brand);
+  color: #ffffff;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+}
+
+.btn-primary[disabled] {
+  opacity: 0.6;
+}
+
+.btn-ghost {
+  background: var(--brand-weak);
+  color: var(--brand);
+  border-radius: 16rpx;
+  font-size: 28rpx;
+}
+
+.btn-danger-ghost {
+  background: #fdf0f0;
+  color: var(--danger);
+  border-radius: 16rpx;
+  font-size: 26rpx;
+}
+
+.input {
+  background: #f4f6fa;
+  border-radius: 12rpx;
+  padding: 18rpx 22rpx;
+  font-size: 28rpx;
+}
+
+.tag {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+}
+
+.tag-ok {
+  background: #e8f7ef;
+  color: var(--ok);
+}
+
+.tag-warn {
+  background: #fdf4e7;
+  color: var(--warn);
+}
+
+.tag-brand {
+  background: var(--brand-weak);
+  color: var(--brand);
+}
+
+.tag-gray {
+  background: #eef0f4;
+  color: var(--text-sub);
+}
+
+.section-gap {
+  height: 24rpx;
+}
+
+.empty {
+  text-align: center;
+  color: var(--text-weak);
+  padding: 60rpx 0;
+  font-size: 26rpx;
+}
+
+.center-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}

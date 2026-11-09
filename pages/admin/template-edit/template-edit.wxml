@@ -1,0 +1,143 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{denied}}" class="center-page">
+    <view class="login-title">无权限</view>
+    <text class="sub">仅管理员 / 负责人可编辑模板</text>
+  </view>
+
+  <block wx:else>
+    <!-- 基础信息 -->
+    <view class="card">
+      <view class="card-title">{{isNew ? '新建模板' : '编辑模板草稿'}}</view>
+      <view class="form-line">
+        <text class="form-label">模板名称</text>
+        <input class="input" value="{{name}}" placeholder="如：销售日报模板" bindinput="onName" />
+      </view>
+      <view class="form-line">
+        <text class="form-label">描述（可选）</text>
+        <input class="input" value="{{description}}" placeholder="模板用途说明" bindinput="onDescription" />
+      </view>
+      <view class="form-line">
+        <text class="form-label">录入模式</text>
+        <picker mode="selector" range="{{['单条', '可重复多行']}}" bindchange="onEntryMode">
+          <view class="picker-box"><text>{{entryModeLabel}}</text><text class="arrow">›</text></view>
+        </picker>
+      </view>
+      <view class="form-line">
+        <text class="form-label">生效时间（发布后开始生效的日期）</text>
+        <picker mode="date" value="{{effectiveFrom || today}}" bindchange="onEffectiveFrom">
+          <view class="picker-box"><text>{{effectiveFrom || today}}</text><text class="arrow">›</text></view>
+        </picker>
+      </view>
+      <view class="form-line">
+        <text class="form-label">下发范围</text>
+        <picker mode="selector" range="{{scopeOptions}}" bindchange="onScopeType">
+          <view class="picker-box"><text>{{scopeTypeLabel}}</text><text class="arrow">›</text></view>
+        </picker>
+      </view>
+
+      <block wx:if="{{scopeType === 'roles'}}">
+        <view class="scope-block">
+          <checkbox-group bindchange="onRoleCheck">
+            <label class="scope-check"><checkbox value="member" checked="{{scopeRoleChecks.member}}" />普通成员</label>
+            <label class="scope-check"><checkbox value="manager" checked="{{scopeRoleChecks.manager}}" />管理员</label>
+            <label class="scope-check"><checkbox value="owner" checked="{{scopeRoleChecks.owner}}" />负责人</label>
+          </checkbox-group>
+        </view>
+      </block>
+
+      <block wx:if="{{scopeType === 'members'}}">
+        <view class="scope-block">
+          <view class="scope-member" wx:for="{{memberOptions}}" wx:key="userId" wx:for-index="mIdx">
+            <text>{{item.name}}</text>
+            <switch checked="{{memberChecks[item.userId]}}" data-idx="{{mIdx}}" bindchange="onMemberToggle" color="#4a7cf7" />
+          </view>
+          <view wx:if="{{memberOptions.length === 0}}" class="empty">团队暂无成员</view>
+        </view>
+      </block>
+    </view>
+
+    <!-- 字段列表 -->
+    <view class="card">
+      <view class="card-title">字段列表（{{fields.length}}）</view>
+      <view class="field-card" wx:for="{{fields}}" wx:key="fieldKey" wx:for-index="fIdx" wx:for-item="f">
+        <view class="field-head" data-idx="{{fIdx}}" bindtap="toggleField">
+          <text class="field-sort">{{fIdx + 1}}. {{f.label || '未命名字段'}}</text>
+          <view class="field-head-right">
+            <text class="tag tag-gray">{{f.typeLabel}}</text>
+            <text class="tag tag-brand" wx:if="{{f.aggregate.enabled}}">统计·{{f.methodLabel}}</text>
+            <text class="field-expand">{{expandedIndex === fIdx ? '收起' : '展开'}}</text>
+          </view>
+        </view>
+
+        <block wx:if="{{expandedIndex === fIdx}}">
+          <view class="form-line">
+            <text class="form-label">字段标签</text>
+            <input class="input" value="{{f.label}}" placeholder="如：成交金额" data-idx="{{fIdx}}" bindinput="onFieldLabel" />
+          </view>
+          <view class="form-line">
+            <text class="form-label">字段标识 fieldKey（发布后不可改语义）</text>
+            <input class="input" value="{{f.fieldKey}}" data-idx="{{fIdx}}" bindinput="onFieldKey" />
+          </view>
+          <view class="form-two">
+            <view class="form-line">
+              <text class="form-label">类型</text>
+              <picker mode="selector" range="{{typeOptions}}" data-idx="{{fIdx}}" bindchange="onFieldType">
+                <view class="picker-box"><text>{{f.typeLabel}}</text><text class="arrow">›</text></view>
+              </picker>
+            </view>
+            <view class="form-line">
+              <text class="form-label">必填</text>
+              <switch checked="{{f.required}}" data-idx="{{fIdx}}" bindchange="onFieldRequired" color="#4a7cf7" />
+            </view>
+          </view>
+          <view class="form-line" wx:if="{{f.type === 'select' || f.type === 'multiselect'}}">
+            <text class="form-label">选项（用逗号分隔）</text>
+            <input class="input" value="{{f.optionsText}}" placeholder="拜访，成交，交付，线索" data-idx="{{fIdx}}" bindinput="onFieldOptions" />
+          </view>
+          <view class="form-two" wx:if="{{f.type === 'integer' || f.type === 'decimal' || f.type === 'money'}}">
+            <view class="form-line">
+              <text class="form-label">最小值</text>
+              <input class="input" type="number" value="{{f.validation.min}}" data-idx="{{fIdx}}" bindinput="onFieldMin" />
+            </view>
+            <view class="form-line">
+              <text class="form-label">最大值</text>
+              <input class="input" type="number" value="{{f.validation.max}}" data-idx="{{fIdx}}" bindinput="onFieldMax" />
+            </view>
+          </view>
+          <view class="form-two">
+            <view class="form-line">
+              <text class="form-label">单位（可选）</text>
+              <input class="input" value="{{f.unit}}" placeholder="如：元" data-idx="{{fIdx}}" bindinput="onFieldUnit" />
+            </view>
+            <view class="form-line">
+              <text class="form-label">占位提示（可选）</text>
+              <input class="input" value="{{f.placeholder}}" data-idx="{{fIdx}}" bindinput="onFieldPlaceholder" />
+            </view>
+          </view>
+          <view class="form-line agg-line">
+            <text class="form-label">参与统计（聚合方式）</text>
+            <view class="agg-right">
+              <picker wx:if="{{f.aggregate.enabled}}" mode="selector" range="{{methodOptions}}" data-idx="{{fIdx}}" bindchange="onFieldMethod">
+                <view class="picker-box picker-small"><text>{{f.methodLabel}}</text></view>
+              </picker>
+              <switch checked="{{f.aggregate.enabled}}" data-idx="{{fIdx}}" bindchange="onFieldAgg" color="#4a7cf7" />
+            </view>
+          </view>
+          <view class="field-ops">
+            <text class="act" data-idx="{{fIdx}}" data-dir="up" catchtap="moveField">上移</text>
+            <text class="act" data-idx="{{fIdx}}" data-dir="down" catchtap="moveField">下移</text>
+            <text class="act act-del" data-idx="{{fIdx}}" catchtap="removeField">删除字段</text>
+          </view>
+        </block>
+      </view>
+
+      <button class="btn-ghost add-field-btn" bindtap="addField">＋ 添加字段</button>
+    </view>
+
+    <button class="btn-primary" bindtap="onSaveAndPublish" loading="{{saving}}" disabled="{{saving}}">保存并发布（立即生效）</button>
+    <button class="btn-ghost draft-save-btn" bindtap="onSave" disabled="{{saving}}">仅保存草稿</button>
+    <view class="section-gap"></view>
+    <text class="weak">发布后成员端下一次打开即按新模板填写；已提交的历史数据不受影响。fieldKey 发布后不可改语义，调整字段请通过发布新版本完成。</text>
+  </block>
+</view>

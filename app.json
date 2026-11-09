@@ -1,0 +1,44 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/records/records",
+    "pages/profile/profile",
+    "pages/team/team",
+    "pages/admin/dashboard/dashboard",
+    "pages/admin/templates/templates",
+    "pages/admin/template-edit/template-edit",
+    "pages/admin/template-preview/template-preview",
+    "pages/admin/reports/reports",
+    "pages/admin/members/members"
+  ],
+  "window": {
+    "navigationBarTitleText": "今日报数",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f5f7fa",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#8a94a6",
+    "selectedColor": "#4a7cf7",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "今日"
+      },
+      {
+        "pagePath": "pages/records/records",
+        "text": "记录"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

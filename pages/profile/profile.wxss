@@ -1,0 +1,41 @@
+.me-name {
+  font-size: 36rpx;
+  font-weight: 700;
+  margin-bottom: 12rpx;
+}
+
+.me-role {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.invite-line {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 2rpx solid var(--line);
+}
+
+.menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 26rpx 0;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-arrow {
+  color: var(--text-weak);
+  font-size: 36rpx;
+}
+
+.signout-btn {
+  margin-top: 12rpx;
+}

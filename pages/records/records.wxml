@@ -1,0 +1,25 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+
+  <block wx:elif="{{needTeam}}">
+    <view class="center-page">
+      <view class="login-title">还没有加入团队</view>
+      <button class="btn-primary" bindtap="goToday">去首页创建 / 加入团队</button>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
+    <view wx:if="{{records.length === 0 && !errorText}}" class="empty">还没有记录，去「今日」提交第一条成果吧</view>
+
+    <view class="card record-item" wx:for="{{records}}" wx:key="id">
+      <view class="record-head">
+        <text class="record-date">{{item.date}}</text>
+        <text class="tag {{item.statusClass}}">{{item.statusText}}</text>
+        <text class="tag tag-gray" wx:if="{{item.backfill}}">补录</text>
+      </view>
+      <text class="record-summary" wx:if="{{item.firstValue}}">{{item.firstValue}}</text>
+      <text class="weak">共 {{item.rowCount}} 条成果</text>
+    </view>
+  </block>
+</view>

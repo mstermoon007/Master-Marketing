@@ -1,0 +1,116 @@
+<!-- 全局加载 -->
+<view wx:if="{{authState === 'checking'}}" class="boot-loading">加载中…</view>
+
+<!-- ========== 已登录主界面 ========== -->
+<block wx:elif="{{authState === 'ready' && !needTeam}}">
+  <view class="home">
+    <!-- 顶部渐变 Hero -->
+    <view class="hero">
+      <view class="hero-title-row">
+        <text class="hero-title">日工作记录</text>
+        <text class="hero-title-en">DAILY REPORT</text>
+      </view>
+      <view class="hero-top">
+        <view class="hero-team">
+          <text class="hero-team-name">{{teamName}}</text>
+          <text class="hero-role">{{role === 'owner' ? '负责人' : (role === 'manager' ? '管理员' : '成员')}}</text>
+        </view>
+        <text class="hero-user">{{memberName}}</text>
+      </view>
+      <view class="hero-date-row">
+        <text class="hero-date">{{todayText}}</text>
+        <text class="hero-week">{{weekName}}</text>
+      </view>
+      <view class="hero-status">
+        <text class="status-dot {{entryExists ? 'status-dot-ok' : ''}}"></text>
+        <text>{{entryExists ? '今日已提交 · 可随时修改' : '今日待填写 · 30 秒搞定'}}</text>
+      </view>
+    </view>
+
+    <!-- 加载中 -->
+    <view wx:if="{{loading}}" class="empty loading-block">加载中…</view>
+
+    <block wx:else>
+      <!-- 错误提示 -->
+      <view class="card err-card" wx:if="{{errorText}}">
+        <text class="err-text">{{errorText}}</text>
+      </view>
+
+      <!-- 无生效模板兜底 -->
+      <view class="card form-card" wx:if="{{noTemplate}}">
+        <view class="fallback-icon">📭</view>
+        <view class="fallback-title">当前没有生效的录入模板</view>
+        <view class="fallback-desc">请联系管理员在「模板管理」中发布模板</view>
+      </view>
+
+      <!-- 动态表单 -->
+      <block wx:elif="{{template}}">
+        <view class="card form-card">
+          <view class="form-head">
+            <view class="form-title-wrap">
+              <text class="form-title">{{templateName}}</text>
+              <text class="ver-tag">v{{templateVersion}}</text>
+            </view>
+            <text class="form-state {{entryExists ? 'form-state-ok' : ''}}">{{entryExists ? '已提交' : '待填写'}}</text>
+          </view>
+          <view class="hint-banner" wx:if="{{hintText}}">
+            <text class="hint-text">{{hintText}}</text>
+          </view>
+          <dynamic-form id="form" template="{{template}}" value="{{initialValue}}" bind:change="onFormChange" />
+          <view class="submit-area">
+            <button class="btn-submit" bindtap="onSubmit" loading="{{submitting}}" disabled="{{submitting}}">
+              {{entryExists ? '更新今日成果' : '提交今日成果'}}
+            </button>
+            <button class="btn-draft" bindtap="onDraft" disabled="{{submitting}}">存草稿</button>
+          </view>
+        </view>
+      </block>
+
+      <!-- 管理入口 -->
+      <view class="card admin-card" wx:if="{{isManager}}">
+        <view class="admin-card-title">管理</view>
+        <view class="admin-item" wx:for="{{adminLinks}}" wx:key="key" data-key="{{item.key}}" bindtap="onAdminTap">
+          <view class="admin-item-main">
+            <text class="admin-title">{{item.title}}</text>
+            <text class="admin-desc">{{item.desc}}</text>
+          </view>
+          <text class="admin-arrow">›</text>
+        </view>
+      </view>
+    </block>
+  </view>
+</block>
+
+<!-- ========== 未登录 ========== -->
+<view class="login-page" wx:elif="{{authState === 'signed-out'}}">
+  <view class="login-hero">
+    <view class="login-logo-ring">
+      <text class="login-logo">📋</text>
+    </view>
+    <view class="login-title">今日报数</view>
+    <view class="login-desc">每天 30 秒，记好每一笔工作记录</view>
+  </view>
+  <view class="login-card">
+    <button class="btn-submit login-btn" bindtap="onWechatLogin" loading="{{loggingIn}}" disabled="{{loggingIn}}">
+      微信一键登录
+    </button>
+    <button class="btn-draft login-btn" bindtap="onWorkBuddyLogin" disabled="{{loggingIn}}">
+      使用 WorkBuddy 登录
+    </button>
+    <text class="login-error" wx:if="{{loginError}}">{{loginError}}</text>
+  </view>
+</view>
+
+<!-- ========== 未加入团队 ========== -->
+<view class="login-page" wx:elif="{{needTeam}}">
+  <view class="login-hero">
+    <view class="login-logo-ring">
+      <text class="login-logo">👥</text>
+    </view>
+    <view class="login-title">还没有加入团队</view>
+    <view class="login-desc">创建团队，或用邀请码加入</view>
+  </view>
+  <view class="login-card">
+    <button class="btn-submit login-btn" bindtap="goTeam">去创建 / 加入团队</button>
+  </view>
+</view>

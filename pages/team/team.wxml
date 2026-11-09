@@ -1,0 +1,38 @@
+<view class="page">
+  <view wx:if="{{checking}}" class="empty">加载中…</view>
+
+  <block wx:else>
+    <view class="tab-switch">
+      <view class="tab-item {{mode === 'join' ? 'tab-active' : ''}}" data-mode="join" bindtap="switchMode">邀请码加入</view>
+      <view class="tab-item {{mode === 'create' ? 'tab-active' : ''}}" data-mode="create" bindtap="switchMode">创建新团队</view>
+    </view>
+
+    <view class="card">
+      <view class="form-line">
+        <text class="form-label">我的姓名</text>
+        <input class="input" value="{{myName}}" placeholder="团队内显示的名字" bindinput="onMyName" />
+      </view>
+
+      <block wx:if="{{mode === 'join'}}">
+        <view class="form-line">
+          <text class="form-label">邀请码</text>
+          <input class="input" value="{{inviteCode}}" placeholder="向负责人索取，如 T4K7QX" bindinput="onInviteCode" />
+        </view>
+        <button class="btn-primary" bindtap="doJoin" loading="{{busy}}" disabled="{{busy}}">加入团队</button>
+      </block>
+
+      <block wx:else>
+        <view class="form-line">
+          <text class="form-label">团队名称</text>
+          <input class="input" value="{{teamName}}" placeholder="如：销售一组" bindinput="onTeamName" />
+        </view>
+        <button class="btn-primary" bindtap="doCreate" loading="{{busy}}" disabled="{{busy}}">创建团队</button>
+        <view class="section-gap"></view>
+        <text class="weak">创建后你将成为团队负责人（owner），可发布录入模板、查看看板与报表，并把邀请码分享给成员。</text>
+      </block>
+
+      <view class="section-gap"></view>
+      <text class="error-text" wx:if="{{errorText}}">{{errorText}}</text>
+    </view>
+  </block>
+</view>

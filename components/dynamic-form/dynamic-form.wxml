@@ -1,0 +1,120 @@
+<view class="df">
+  <block wx:for="{{rows}}" wx:key="rowId" wx:for-item="row" wx:for-index="rowIndex">
+    <view class="df-row" wx:if="{{repeatable}}">
+      <view class="df-row-head">
+        <text class="df-row-no">成果 {{rowIndex + 1}}</text>
+        <text class="df-row-del" wx:if="{{!disabled}}" data-row="{{row.rowId}}" bindtap="removeRow">删除</text>
+      </view>
+    </view>
+
+    <block wx:for="{{fields}}" wx:key="fieldKey" wx:for-item="f" wx:for-index="fIndex">
+      <view class="df-field">
+        <view class="df-label-line">
+          <text class="df-label">{{f.label}}</text>
+          <text class="df-required" wx:if="{{f.required}}">*</text>
+          <text class="df-unit" wx:if="{{f.unit}}">（{{f.unit}}）</text>
+        </view>
+
+        <!-- 文本 -->
+        <input
+          wx:if="{{f.type === 'text'}}"
+          class="df-input"
+          value="{{row.values[f.fieldKey]}}"
+          placeholder="{{f.placeholder || '请输入' + f.label}}"
+          disabled="{{disabled}}"
+          data-row="{{row.rowId}}"
+          data-key="{{f.fieldKey}}"
+          bindinput="onInput"
+        />
+
+        <!-- 多行文本 -->
+        <textarea
+          wx:elif="{{f.type === 'textarea'}}"
+          class="df-textarea"
+          value="{{row.values[f.fieldKey]}}"
+          placeholder="{{f.placeholder || '请输入' + f.label}}"
+          disabled="{{disabled}}"
+          auto-height
+          maxlength="500"
+          data-row="{{row.rowId}}"
+          data-key="{{f.fieldKey}}"
+          bindinput="onInput"
+        />
+
+        <!-- 数字：整数 -->
+        <input
+          wx:elif="{{f.type === 'integer'}}"
+          class="df-input"
+          type="number"
+          value="{{row.values[f.fieldKey]}}"
+          placeholder="{{f.placeholder || '请输入' + f.label}}"
+          disabled="{{disabled}}"
+          data-row="{{row.rowId}}"
+          data-key="{{f.fieldKey}}"
+          bindinput="onInput"
+        />
+
+        <!-- 数字：小数 / 金额 -->
+        <input
+          wx:elif="{{f.type === 'decimal' || f.type === 'money'}}"
+          class="df-input"
+          type="digit"
+          value="{{row.values[f.fieldKey]}}"
+          placeholder="{{f.placeholder || '请输入' + f.label}}"
+          disabled="{{disabled}}"
+          data-row="{{row.rowId}}"
+          data-key="{{f.fieldKey}}"
+          bindinput="onInput"
+        />
+
+        <!-- 单选 -->
+        <picker
+          wx:elif="{{f.type === 'select'}}"
+          mode="selector"
+          range="{{f.options}}"
+          disabled="{{disabled}}"
+          data-row="{{row.rowId}}"
+          data-key="{{f.fieldKey}}"
+          data-fieldindex="{{fIndex}}"
+          bindchange="onSelect"
+        >
+          <view class="df-picker {{row.values[f.fieldKey] ? '' : 'df-picker-empty'}}">
+            <text>{{row.values[f.fieldKey] || ('请选择' + f.label)}}</text>
+            <text class="df-arrow">›</text>
+          </view>
+        </picker>
+
+        <!-- 多选 -->
+        <checkbox-group
+          wx:elif="{{f.type === 'multiselect'}}"
+          data-row="{{row.rowId}}"
+          data-key="{{f.fieldKey}}"
+          bindchange="onCheck"
+        >
+          <label class="df-check" wx:for="{{f.options}}" wx:key="*this" wx:for-item="opt">
+            <checkbox value="{{opt}}" checked="{{row.checks[f.fieldKey][opt]}}" />
+            <text>{{opt}}</text>
+          </label>
+        </checkbox-group>
+
+        <!-- 日期 -->
+        <picker
+          wx:elif="{{f.type === 'date'}}"
+          mode="date"
+          value="{{row.values[f.fieldKey] || ''}}"
+          disabled="{{disabled}}"
+          data-row="{{row.rowId}}"
+          data-key="{{f.fieldKey}}"
+          bindchange="onDate"
+        >
+          <view class="df-picker {{row.values[f.fieldKey] ? '' : 'df-picker-empty'}}">
+            <text>{{row.values[f.fieldKey] || ('请选择' + f.label)}}</text>
+            <text class="df-arrow">›</text>
+          </view>
+        </picker>
+      </view>
+    </block>
+  </block>
+
+  <view class="df-add" wx:if="{{repeatable && !disabled}}" bindtap="addRow">＋ 添加一条成果</view>
+</view>

@@ -1,0 +1,61 @@
+.new-btn {
+  margin-bottom: 24rpx;
+}
+
+.ver-item {
+  padding: 18rpx 0;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.ver-item:last-child {
+  border-bottom: none;
+}
+
+.ver-line {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-bottom: 12rpx;
+}
+
+.ver-no {
+  font-weight: 700;
+  font-size: 28rpx;
+}
+
+.ver-actions {
+  display: flex;
+  gap: 20rpx;
+}
+
+.act {
+  font-size: 26rpx;
+  color: var(--brand);
+  padding: 6rpx 20rpx;
+  background: var(--brand-weak);
+  border-radius: 999rpx;
+}
+
+.act-edit {
+  color: var(--brand);
+}
+
+.act-pub {
+  color: #ffffff;
+  background: var(--brand);
+}
+
+.act-arch {
+  color: var(--warn);
+  background: #fdf4e7;
+}
+
+.act-del {
+  color: var(--danger);
+  background: #fdf0f0;
+}
+
+.rule-tip {
+  display: block;
+  padding: 0 8rpx;
+}

@@ -1,0 +1,110 @@
+.df {
+  width: 100%;
+}
+
+.df-row {
+  margin-bottom: 8rpx;
+}
+
+.df-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 0 8rpx;
+}
+
+.df-row-no {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--brand);
+}
+
+.df-row-del {
+  font-size: 24rpx;
+  color: var(--danger);
+  padding: 4rpx 16rpx;
+  background: #fdf0f0;
+  border-radius: 999rpx;
+}
+
+.df-field {
+  margin-bottom: 24rpx;
+}
+
+.df-label-line {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 10rpx;
+}
+
+.df-label {
+  font-size: 26rpx;
+  color: var(--text-sub);
+}
+
+.df-required {
+  color: var(--danger);
+  margin-left: 6rpx;
+  font-size: 26rpx;
+}
+
+.df-unit {
+  color: var(--text-weak);
+  font-size: 22rpx;
+  margin-left: 8rpx;
+}
+
+.df-input {
+  background: #f4f6fa;
+  border-radius: 12rpx;
+  padding: 18rpx 22rpx;
+  font-size: 28rpx;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.df-textarea {
+  background: #f4f6fa;
+  border-radius: 12rpx;
+  padding: 18rpx 22rpx;
+  font-size: 28rpx;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 120rpx;
+}
+
+.df-picker {
+  background: #f4f6fa;
+  border-radius: 12rpx;
+  padding: 18rpx 22rpx;
+  font-size: 28rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.df-picker-empty {
+  color: var(--text-weak);
+}
+
+.df-arrow {
+  color: var(--text-weak);
+  font-size: 32rpx;
+}
+
+.df-check {
+  display: inline-flex;
+  align-items: center;
+  margin: 8rpx 24rpx 8rpx 0;
+  font-size: 26rpx;
+}
+
+.df-add {
+  margin-top: 8rpx;
+  text-align: center;
+  color: var(--brand);
+  background: var(--brand-weak);
+  border-radius: 14rpx;
+  padding: 18rpx;
+  font-size: 28rpx;
+}

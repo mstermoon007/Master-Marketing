@@ -1,0 +1,63 @@
+.invite-card {
+  background: var(--brand-weak);
+}
+
+.invite-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.invite-line .card-title {
+  margin-bottom: 8rpx;
+}
+
+.invite-btn {
+  display: inline-flex;
+}
+
+.invite-code {
+  font-size: 52rpx;
+  font-weight: 800;
+  letter-spacing: 8rpx;
+  color: var(--brand);
+  text-align: center;
+  padding: 16rpx 0 4rpx;
+}
+
+.member-row {
+  padding: 20rpx 0;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.member-row:last-child {
+  border-bottom: none;
+}
+
+.member-info {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 4rpx;
+}
+
+.member-name {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.member-ops {
+  display: flex;
+  gap: 24rpx;
+  margin-top: 12rpx;
+}
+
+.act {
+  font-size: 26rpx;
+  color: var(--brand);
+}
+
+.act-del {
+  color: var(--danger);
+}
