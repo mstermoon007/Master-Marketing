@@ -26,6 +26,11 @@ Page({
         this.setData({ loading: false, errorText: '缺少模板参数' })
         return
       }
+      // 服务端同样会校验（草稿仅管理员可读），这里先拦截避免普通成员白等一次请求
+      if (!session.isManager(ctx.member)) {
+        this.setData({ loading: false, errorText: '仅管理员 / 负责人可预览模板' })
+        return
+      }
       const row = await store.getTemplate(this.templateId)
       if (!row) {
         this.setData({ loading: false, errorText: '模板不存在' })

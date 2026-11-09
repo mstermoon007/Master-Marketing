@@ -12,7 +12,7 @@
     "pages/admin/members/members"
   ],
   "window": {
-    "navigationBarTitleText": "今日报数",
+    "navigationBarTitleText": "报数机器人AI",
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black",
     "backgroundColor": "#f5f7fa",
@@ -39,6 +39,5 @@
     ]
   },
   "style": "v2",
-  "sitemapLocation": "sitemap.json",
-  "lazyCodeLoading": "requiredComponents"
+  "sitemapLocation": "sitemap.json"
 }

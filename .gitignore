@@ -12,3 +12,17 @@ $RECYCLE.BIN/
 
 # Node.js
 node_modules/
+
+# Python / 服务端
+server/.env
+server/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 微信开发者工具私有配置
+project.private.config.json
+
+# 应用卡与隐私配置
+.wbapp_*.genie
+.wbapp_*.privacy.json

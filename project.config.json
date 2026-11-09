@@ -1,8 +1,8 @@
 {
-  "description": "今日报数 · 日工作记录小程序（微信小程序 + WorkBuddy 云服务）",
+  "description": "报数机器人AI · 团队日报小程序（微信小程序 + 自有服务端 FastAPI/MySQL）",
   "compileType": "miniprogram",
-  "appid": "wxa103e0f3e7ff3f6c",
-  "projectname": "今日报数",
+  "appid": "wx6359d33c631cec4d",
+  "projectname": "报数机器人AI",
   "miniprogramRoot": "./",
   "setting": {
     "es6": true,
@@ -26,6 +26,22 @@
       {
         "type": "folder",
         "value": ".workbuddy"
+      },
+      {
+        "type": "folder",
+        "value": "server"
+      },
+      {
+        "type": "folder",
+        "value": "docs"
+      },
+      {
+        "type": "file",
+        "value": "README.md"
+      },
+      {
+        "type": "file",
+        "value": "CODEBUDDY.md"
       }
     ],
     "include": []

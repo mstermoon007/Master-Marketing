@@ -124,21 +124,41 @@ Page({
 
   publishRow: async function (id) {
     try {
-      const ctx = await session.loadContext()
-      const row = await store.publishTemplate(ctx.team.team_id, id, ctx.member.user_id)
-      wx.showToast({ title: '已发布 v' + row.version + '，成员端立即生效', icon: 'none' })
+      const row = await store.publishTemplate(id)
+      const effective = row && row.effective_from ? row.effective_from : '今天'
+      wx.showToast({ title: '已发布 v' + row.version + '，' + effective + ' 起生效', icon: 'none' })
       this.onShow()
     } catch (e) {
       wx.showToast({ title: e.message || '发布失败', icon: 'none' })
     }
   },
 
-  onArchive: function (e) {
+  onArchive: async function (e) {
     const id = e.currentTarget.dataset.id
     const self = this
+    // 旧版本在发布新版本时已归档，停用并不会「回退到上一生效版本」；
+    // 按实际剩余的已生效模板数量给出准确提示，避免管理员误判后果。
+    let content = '停用后该模板不再对成员下发。确认停用？'
+    try {
+      const ctx = await session.loadContext()
+      if (ctx && ctx.team) {
+        const rows = await store.listTemplates(ctx.team.team_id)
+        const today = require('../../../utils/date').today()
+        const others = (rows || []).filter(function (t) {
+          return t.status === 'published' &&
+            String(t.id) !== String(id) &&
+            (!t.effective_from || t.effective_from <= today)
+        })
+        content = others.length
+          ? '停用后成员端将改用其它已生效模板（' + others.length + ' 个）。确认停用？'
+          : '停用后若没有其他已发布模板，成员端将提示「暂无生效模板」。确认停用？'
+      }
+    } catch (err) {
+      // 列表读取失败不阻断停用，使用中性文案
+    }
     wx.showModal({
       title: '停用模板',
-      content: '停用后成员端将回退到上一生效版本（如无则提示无模板）。确认停用？',
+      content: content,
       success: async function (res) {
         if (!res.confirm) return
         try {

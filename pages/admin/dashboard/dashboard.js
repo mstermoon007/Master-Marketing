@@ -39,11 +39,11 @@ Page({
   loadDashboard: async function (ctx) {
     try {
       const today = dateUtil.today()
-      // 忽略查询者自身范围（P1-2）：范围由模板 scope 对每个成员判定
-      const tpl = await store.getActiveTemplate(ctx.team.team_id, ctx.member, true)
+      // 多模板分别下发时，应提交名单 = 命中任意一个已生效模板范围的成员（P2-3）
+      const templates = await store.getEffectiveTemplates(ctx.team.team_id)
       const members = await store.listMembers(ctx.team.team_id)
       const active = members.filter(function (m) {
-        return m.status === 'active' && (!tpl || store.inScope(tpl.scope, m))
+        return m.status === 'active' && store.inAnyScope(templates, m)
       })
       const targets = active
       const entries = await store.listTeamEntries(ctx.team.team_id, today, today)
@@ -80,8 +80,8 @@ Page({
         rateText: rate + '%',
         ratePercent: rate,
         missing: missing,
-        hasTemplate: !!tpl,
-        templateName: tpl ? tpl.name : '',
+        hasTemplate: templates.length > 0,
+        templateName: templates.map(function (t) { return t.name }).join('、'),
       })
     } catch (e) {
       this.setData({ loading: false, errorText: e.message || '加载失败' })

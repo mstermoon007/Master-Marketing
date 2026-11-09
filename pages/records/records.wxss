@@ -15,6 +15,33 @@
   margin-right: auto;
 }
 
+.record-date-link {
+  color: var(--brand);
+}
+
+.backfill-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 24rpx 20rpx;
+}
+
+.btn-backfill {
+  margin: 0;
+  padding: 0 28rpx;
+  height: 60rpx;
+  line-height: 60rpx;
+  font-size: 24rpx;
+  color: var(--brand);
+  background: var(--brand-weak);
+  border-radius: 999rpx;
+  border: none;
+}
+
+.btn-backfill::after {
+  border: none;
+}
+
 .record-summary {
   display: block;
   color: var(--text-sub);

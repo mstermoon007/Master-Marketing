@@ -1,4 +1,7 @@
 // 日期工具：本地时区，格式 YYYY-MM-DD
+// 补录窗口：与服务端 server/app/handlers/entries.py 的 BACKFILL_DAYS 保持一致
+const BACKFILL_DAYS = 31
+
 function pad(n) {
   return n < 10 ? '0' + n : '' + n
 }
@@ -81,4 +84,25 @@ function periodLabel(period, dateStr) {
   return dateStr
 }
 
-module.exports = { today, fmtDate, parseDate, addDays, rangeOf, periodLabel, weekStart, monthStart, monthEnd, yearStart, yearEnd }
+// 允许补录的最早日期（含当天）
+function minEntryDate(todayStr) {
+  return addDays(todayStr || today(), -BACKFILL_DAYS)
+}
+
+// 日期是否落在可补录窗口内；服务端会再独立校验一次
+function isEntryDateAllowed(dateStr, todayStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr))) return false
+  const t = todayStr || today()
+  return dateStr >= minEntryDate(t) && dateStr <= t
+}
+
+function weekName(dateStr) {
+  const names = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  return names[parseDate(dateStr).getDay()]
+}
+
+module.exports = {
+  today, fmtDate, parseDate, addDays, rangeOf, periodLabel,
+  weekStart, monthStart, monthEnd, yearStart, yearEnd,
+  BACKFILL_DAYS, minEntryDate, isEntryDateAllowed, weekName,
+}

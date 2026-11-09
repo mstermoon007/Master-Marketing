@@ -11,7 +11,6 @@ Page({
     inviteCode: '',
     busy: false,
     errorText: '',
-    myTeams: [],
   },
 
   onShow: async function () {
@@ -23,7 +22,15 @@ Page({
         wx.switchTab({ url: '/pages/index/index' })
         return
       }
-      this.setData({ checking: false, signedIn: true, myName: (ctx.session.user && ctx.session.user.name) || '' })
+      if (ctx.member && ctx.team) {
+        // 一人一团队：已有团队时不再展示创建/加入表单，避免误建导致上下文错乱
+        wx.showToast({ title: '你已加入团队「' + ctx.team.name + '」', icon: 'none' })
+        setTimeout(function () {
+          wx.switchTab({ url: '/pages/index/index' })
+        }, 900)
+        return
+      }
+      this.setData({ checking: false, signedIn: true })
     } catch (e) {
       this.setData({ checking: false, errorText: e.message || '加载失败' })
     }
@@ -54,8 +61,7 @@ Page({
     }
     this.setData({ busy: true, errorText: '' })
     try {
-      const ctx = await session.loadContext()
-      const res = await store.createTeam(name, ctx.uid, myName)
+      const res = await store.createTeam(name, myName)
       session.clearContext()
       await session.loadContext(true)
       store.logAction(res.team.team_id, 'team_create', 'teams', res.team.team_id, { name: name })
@@ -78,17 +84,16 @@ Page({
     }
     this.setData({ busy: true, errorText: '' })
     try {
-      const ctx = await session.loadContext()
       const team = await store.findTeamByCode(code)
       if (!team) {
         this.setData({ errorText: '邀请码不存在，请确认后重试' })
         this.setData({ busy: false })
         return
       }
-      await store.joinTeam(code, ctx.uid, myName)
+      await store.joinTeam(code, myName)
       session.clearContext()
       await session.loadContext(true)
-      store.logAction(code, 'member_join', 'members', ctx.uid, { name: myName })
+      store.logAction(code, 'member_join', 'members', session.currentUid(), { name: myName })
       wx.showToast({ title: '已加入 ' + team.name, icon: 'success' })
       setTimeout(function () {
         wx.switchTab({ url: '/pages/index/index' })

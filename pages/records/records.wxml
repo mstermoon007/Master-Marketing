@@ -12,9 +12,14 @@
     <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
     <view wx:if="{{records.length === 0 && !errorText}}" class="empty">还没有记录，去「今日」提交第一条成果吧</view>
 
+    <view class="backfill-bar">
+      <text class="weak">漏填了？可补录近 {{backfillDays}} 天</text>
+      <button class="btn-backfill" bindtap="onBackfill">补录昨日</button>
+    </view>
+
     <view class="card record-item" wx:for="{{records}}" wx:key="id">
       <view class="record-head">
-        <text class="record-date">{{item.date}}</text>
+        <text class="record-date record-date-link" data-date="{{item.date}}" bindtap="onEditDate">{{item.date}} ›</text>
         <text class="tag {{item.statusClass}}">{{item.statusText}}</text>
         <text class="tag tag-gray" wx:if="{{item.backfill}}">补录</text>
       </view>

@@ -83,21 +83,60 @@
 
 .hero-date-row {
   display: flex;
+  align-items: center;
+  margin-top: 24rpx;
+}
+
+.date-picker {
+  display: flex;
   align-items: baseline;
-  margin-top: 28rpx;
+  padding: 0 8rpx;
 }
 
 .hero-date {
   color: #ffffff;
-  font-size: 56rpx;
+  font-size: 48rpx;
   font-weight: 800;
   letter-spacing: 2rpx;
 }
 
 .hero-week {
   color: rgba(255, 255, 255, 0.85);
-  font-size: 28rpx;
+  font-size: 26rpx;
+  margin-left: 14rpx;
+}
+
+.date-edit {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 20rpx;
   margin-left: 16rpx;
+  border-bottom: 2rpx dashed rgba(255, 255, 255, 0.6);
+}
+
+.date-arrow {
+  width: 52rpx;
+  height: 52rpx;
+  line-height: 48rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-size: 40rpx;
+  flex-shrink: 0;
+}
+
+.date-arrow-off {
+  opacity: 0.35;
+}
+
+.backfill-tag {
+  margin-left: 16rpx;
+  background: #ffd66b;
+  color: #7a5200;
+  font-size: 20rpx;
+  font-weight: 600;
+  border-radius: 999rpx;
+  padding: 4rpx 16rpx;
 }
 
 .hero-status {

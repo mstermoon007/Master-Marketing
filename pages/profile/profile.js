@@ -10,6 +10,7 @@ Page({
     isManager: false,
     memberSeeTeamTotal: false,
     inviteCode: '',
+    errorText: '',
   },
 
   onShow: async function () {
@@ -30,7 +31,12 @@ Page({
         memberSeeTeamTotal: ctx.team && ctx.team.config ? !!ctx.team.config.memberSeeTeamTotal : false,
       })
     } catch (e) {
-      this.setData({ authState: 'ready', signedIn: false })
+      // 保留登录态，停用成员仍能看到「退出登录」；同时展示明确原因
+      this.setData({
+        authState: 'ready',
+        signedIn: session.hasSession(),
+        errorText: (e && e.message) || '加载失败',
+      })
     }
   },
 

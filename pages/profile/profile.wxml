@@ -10,6 +10,7 @@
   </block>
 
   <block wx:else>
+    <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
     <view class="card">
       <view class="me-name">{{member ? member.name : ''}}</view>
       <view class="me-role">

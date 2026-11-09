@@ -127,14 +127,12 @@ function displayValue(field, method) {
 function aggregateEntriesMulti(entries, resolver) {
   const groups = {} // groupKey -> { fields, entries }
   const groupOrder = []
-  const entryGroup = new Map()
   ;(entries || []).forEach(function (entry, idx) {
     const fields = resolver(entry)
     if (!fields) return
     const key = idx // 保证每个 entry 被处理且保留顺序
     groups[key] = { fields: fields, entries: [entry] }
     groupOrder.push(key)
-    entryGroup.set(idx, key)
   })
 
   // 合并 byField 与 byUser：fieldKey -> metric

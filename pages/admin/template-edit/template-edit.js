@@ -33,7 +33,6 @@ const SCOPE_OPTIONS = [
 const SCOPE_LABELS = SCOPE_OPTIONS.map(function (o) {
   return o.label
 })
-const ROLE_OPTIONS = ['member', 'manager', 'owner']
 
 function typeLabel(v) {
   for (let i = 0; i < TYPE_OPTIONS.length; i++) {
@@ -207,7 +206,6 @@ Page({
         return
       }
       const version = await store.nextVersion(ctx.team.team_id, row.template_id)
-      row.name = row.name
       row.version = version
       row.status = 'draft'
       row.effective_from = ''
@@ -551,9 +549,11 @@ Page({
         savedId = this.data.editId
       }
       if (publishNow) {
-        // 一键生效：成员端下一次打开即按新模板渲染
-        await store.publishTemplate(this.ctx.team.team_id, savedId, this.ctx.member.user_id)
-        wx.showToast({ title: '已发布 v' + payload.version + '，成员端立即生效', icon: 'none' })
+        // 用发布接口返回的版本号/生效日（编辑已有草稿时 payload 里没有 version）
+        const published = await store.publishTemplate(savedId)
+        const ver = published && published.version ? published.version : (payload.version || '')
+        const effective = published && published.effective_from ? published.effective_from : '今天'
+        wx.showToast({ title: '已发布 v' + ver + '，' + effective + ' 起生效', icon: 'none' })
       } else {
         wx.showToast({ title: '草稿已保存', icon: 'success' })
       }

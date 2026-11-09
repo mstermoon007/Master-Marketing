@@ -7,8 +7,8 @@
     <!-- 顶部渐变 Hero -->
     <view class="hero">
       <view class="hero-title-row">
-        <text class="hero-title">日工作记录</text>
-        <text class="hero-title-en">DAILY REPORT</text>
+        <text class="hero-title">报数机器人AI</text>
+        <text class="hero-title-en">AI DAILY REPORT</text>
       </view>
       <view class="hero-top">
         <view class="hero-team">
@@ -18,12 +18,20 @@
         <text class="hero-user">{{memberName}}</text>
       </view>
       <view class="hero-date-row">
-        <text class="hero-date">{{todayText}}</text>
-        <text class="hero-week">{{weekName}}</text>
+        <view class="date-arrow {{canPrev ? '' : 'date-arrow-off'}}" data-delta="-1" bindtap="shiftEntryDate">‹</view>
+        <picker mode="date" value="{{entryDate}}" start="{{minEntryDate}}" end="{{todayText}}" bindchange="onDateChange">
+          <view class="date-picker">
+            <text class="hero-date">{{entryDate}}</text>
+            <text class="hero-week">{{weekName}}</text>
+            <text class="date-edit">选择日期</text>
+          </view>
+        </picker>
+        <view class="date-arrow {{canNext ? '' : 'date-arrow-off'}}" data-delta="1" bindtap="shiftEntryDate">›</view>
+        <text class="backfill-tag" wx:if="{{isBackfill}}">补录</text>
       </view>
       <view class="hero-status">
         <text class="status-dot {{entryExists ? 'status-dot-ok' : ''}}"></text>
-        <text>{{entryExists ? '今日已提交 · 可随时修改' : '今日待填写 · 30 秒搞定'}}</text>
+        <text>{{statusText}}</text>
       </view>
     </view>
 
@@ -59,7 +67,7 @@
           <dynamic-form id="form" template="{{template}}" value="{{initialValue}}" bind:change="onFormChange" />
           <view class="submit-area">
             <button class="btn-submit" bindtap="onSubmit" loading="{{submitting}}" disabled="{{submitting}}">
-              {{entryExists ? '更新今日成果' : '提交今日成果'}}
+              {{submitLabel}}
             </button>
             <button class="btn-draft" bindtap="onDraft" disabled="{{submitting}}">存草稿</button>
           </view>
@@ -87,15 +95,12 @@
     <view class="login-logo-ring">
       <text class="login-logo">📋</text>
     </view>
-    <view class="login-title">今日报数</view>
+    <view class="login-title">报数机器人AI</view>
     <view class="login-desc">每天 30 秒，记好每一笔工作记录</view>
   </view>
   <view class="login-card">
     <button class="btn-submit login-btn" bindtap="onWechatLogin" loading="{{loggingIn}}" disabled="{{loggingIn}}">
       微信一键登录
-    </button>
-    <button class="btn-draft login-btn" bindtap="onWorkBuddyLogin" disabled="{{loggingIn}}">
-      使用 WorkBuddy 登录
     </button>
     <text class="login-error" wx:if="{{loginError}}">{{loginError}}</text>
   </view>

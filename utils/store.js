@@ -1,209 +1,110 @@
 // 数据访问层：teams / members / form_templates / daily_entries / audit_logs
-const { cloud } = require('./cloud')
-
-const db = cloud.database
-
-function unwrap(res) {
-  if (res.error) {
-    const err = new Error(res.error.message || '请求失败')
-    err.code = res.error.code
-    throw err
-  }
-  return res.data
-}
+// 经自有服务端 /api 访问；本层保持 action 契约，页面零改动。
+// 身份一律由服务端验签 JWT 得出，客户端不传 uid/userId（防伪造）。
+const { callApi } = require('./http')
 
 // ---------- 团队 ----------
-function genTeamId() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let s = ''
-  for (let i = 0; i < 6; i++) {
-    s += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return 'T' + s
-}
-
-async function createTeam(name, uid, memberName) {
-  const teamId = genTeamId()
-  const team = unwrap(
-    await db
-      .from('teams')
-      .insert({ team_id: teamId, name: name, owner_uid: uid, config: { memberSeeTeamTotal: false } })
-      .select()
-  )[0]
-  const member = unwrap(
-    await db
-      .from('members')
-      .insert({ team_id: teamId, user_id: uid, name: memberName, role: 'owner', status: 'active' })
-      .select()
-  )[0]
-  return { team: team, member: member }
+// 真实身份由服务端验签 JWT 得出，客户端不传 uid
+async function createTeam(name, memberName) {
+  return callApi('createTeam', { name: name, memberName: memberName })
 }
 
 async function findTeamByCode(code) {
-  const rows = unwrap(await db.from('teams').select('*').eq('team_id', code).limit(1))
-  return rows && rows.length ? rows[0] : null
+  return callApi('findTeam', { code: code })
 }
 
-async function joinTeam(teamId, uid, memberName) {
-  const exists = unwrap(
-    await db.from('members').select('*').eq('team_id', teamId).eq('user_id', uid).limit(1)
-  )
-  if (exists && exists.length) {
-    // 新策略下成员可见自己的行（含停用状态）：停用成员需明确提示
-    if (exists[0].status !== 'active') {
-      throw new Error('你已在团队名单中但处于停用状态，请联系管理员启用')
-    }
-    return exists[0]
-  }
-  try {
-    const rows = unwrap(
-      await db
-        .from('members')
-        .insert({ team_id: teamId, user_id: uid, name: memberName, role: 'member', status: 'active' })
-        .select()
-    )
-    return rows[0]
-  } catch (e) {
-    // 唯一约束冲突兜底：并发加入或 RLS 可见性边缘情况
-    if (e.code === '23505' || /duplicate|unique/i.test(e.message || '')) {
-      throw new Error('你已在团队名单中，请退出重进或联系管理员')
-    }
-    throw e
-  }
+async function joinTeam(teamId, memberName) {
+  return callApi('joinTeam', { teamId: teamId, memberName: memberName })
 }
 
 async function getTeam(teamId) {
-  const rows = unwrap(await db.from('teams').select('*').eq('team_id', teamId).limit(1))
-  return rows && rows.length ? rows[0] : null
+  return callApi('getTeam', { teamId: teamId })
 }
 
 async function updateTeamConfig(teamId, config) {
-  return unwrap(await db.from('teams').update({ config: config }).eq('team_id', teamId).select())
+  return callApi('updateTeamConfig', { teamId: teamId, config: config })
 }
 
 // ---------- 成员 ----------
-async function getMyMember(uid) {
-  const rows = unwrap(await db.from('members').select('*').eq('user_id', uid).eq('status', 'active').limit(1))
-  return rows && rows.length ? rows[0] : null
+async function getMyMember() {
+  return callApi('getMyMember')
 }
 
 async function listMembers(teamId) {
-  return unwrap(await db.from('members').select('*').eq('team_id', teamId).order('joined_at', { ascending: true }))
+  return callApi('listMembers', { teamId: teamId })
 }
 
 async function updateMember(id, patch) {
-  return unwrap(await db.from('members').update(patch).eq('id', id).select())
+  return callApi('updateMember', { id: id, patch: patch })
 }
 
 async function removeMember(id) {
-  return unwrap(await db.from('members').delete().eq('id', id).select())
+  return callApi('removeMember', { id: id })
 }
 
 // ---------- 模板 ----------
 async function listTemplates(teamId) {
-  return unwrap(
-    await db
-      .from('form_templates')
-      .select('*')
-      .eq('team_id', teamId)
-      .order('template_id', { ascending: true })
-      .order('version', { ascending: false })
-  )
+  return callApi('listTemplates', { teamId: teamId })
 }
 
 async function getTemplate(id) {
-  const rows = unwrap(await db.from('form_templates').select('*').eq('id', id).limit(1))
-  return rows && rows.length ? rows[0] : null
+  return callApi('getTemplate', { id: id })
 }
 
 async function listPublishedTemplates(teamId) {
-  return unwrap(
-    await db
-      .from('form_templates')
-      .select('*')
-      .eq('team_id', teamId)
-      .eq('status', 'published')
-      .order('version', { ascending: false })
-  )
+  return callApi('listPublishedTemplates', { teamId: teamId })
 }
 
 async function createDraft(payload) {
-  return unwrap(await db.from('form_templates').insert(payload).select())[0]
+  return callApi('createDraft', { payload: payload })
 }
 
 async function updateTemplateRow(id, patch) {
-  return unwrap(await db.from('form_templates').update(patch).eq('id', id).select())[0]
+  return callApi('updateTemplateRow', { id: id, patch: patch })
 }
 
 async function deleteTemplateRow(id) {
-  return unwrap(await db.from('form_templates').delete().eq('id', id).select())
+  return callApi('deleteTemplateRow', { id: id })
+}
+
+async function nextVersion(teamId, templateId) {
+  return callApi('nextVersion', { teamId: teamId, templateId: templateId })
 }
 
 // 发布模板（管理端"随时调整"的统一入口）：
-// 草稿 → published（立即生效）→ 归档同模板旧版本 → 冻结快照写审计
-async function publishTemplate(teamId, id, userId) {
-  const row = await getTemplate(id)
-  if (!row) throw new Error('模板不存在')
-  if (row.status !== 'draft') throw new Error('只有草稿可以发布')
+// 服务端完成 草稿 → published → 归档旧版本 → 冻结快照写审计
+async function publishTemplate(id) {
   const dateUtil = require('./date')
-  // 先置 published（避免"无生效版本"窗口期），再归档旧版本
-  await updateTemplateRow(id, {
-    status: 'published',
-    effective_from: row.effective_from || dateUtil.today(),
-    published_by: userId,
-    published_at: new Date().toISOString(),
-  })
-  const all = await listTemplates(teamId)
-  for (let i = 0; i < all.length; i++) {
-    const t = all[i]
-    if (t.template_id === row.template_id && t.status === 'published' && String(t.id) !== String(id)) {
-      await updateTemplateRow(t.id, { status: 'archived' })
-    }
-  }
-  await logAction(teamId, 'template_publish', 'form_templates', row.template_id, {
-    version: row.version,
-    fields: row.fields,
-    scope: row.scope,
-    effectiveFrom: row.effective_from || dateUtil.today(),
-  })
-  return row
+  return callApi('publishTemplate', { id: id, today: dateUtil.today() })
 }
 
-// 模板版本号：同 template_id 的最大版本 + 1
-async function nextVersion(teamId, templateId) {
-  const rows = unwrap(
-    await db
-      .from('form_templates')
-      .select('version')
-      .eq('team_id', teamId)
-      .eq('template_id', templateId)
-      .order('version', { ascending: false })
-      .limit(1)
-  )
-  return rows && rows.length ? Number(rows[0].version) + 1 : 1
+function sortTemplates(a, b) {
+  if (a.effective_from === b.effective_from) return Number(b.version) - Number(a.version)
+  return (b.effective_from || '') > (a.effective_from || '') ? 1 : -1
 }
 
-// 当前生效模板：published、生效时间已到、命中下发范围，取版本最高
-// ignoreScope=true 时跳过范围判定（供管理端看板/报表按成员逐个判定范围使用）
-async function getActiveTemplate(teamId, member, ignoreScope) {
+// 当前所有已生效的已发布模板，按「生效日 → 版本」降序。
+// 管理端算「应提交名单」必须遍历全部模板，不能只取最新一个（多模板分别下发时会漏人）。
+async function getEffectiveTemplates(teamId, asOf) {
   const list = await listPublishedTemplates(teamId)
-  const today = require('./date').today()
-  const candidates = list.filter(function (t) {
-    if (!t.effective_from || t.effective_from <= today) return true
-    return false
-  })
-  candidates.sort(function (a, b) {
-    if (a.effective_from === b.effective_from) return Number(b.version) - Number(a.version)
-    return (b.effective_from || '') > (a.effective_from || '') ? 1 : -1
-  })
+  const day = asOf || require('./date').today()
+  return (list || []).filter(function (t) {
+    return !t.effective_from || t.effective_from <= day
+  }).sort(sortTemplates)
+}
+
+// 成员端：从已生效模板里取第一个命中该成员下发范围的（一天一条记录）
+async function getActiveTemplate(teamId, member, asOf) {
+  const candidates = await getEffectiveTemplates(teamId, asOf)
   for (let i = 0; i < candidates.length; i++) {
-    if (ignoreScope || inScope(candidates[i].scope, member)) return candidates[i]
+    if (inScope(candidates[i].scope, member)) return candidates[i]
   }
   return null
 }
 
 function inScope(scope, member) {
   if (!scope || !scope.type || scope.type === 'all') return true
+  if (!member) return false
   if (scope.type === 'members') {
     return (scope.memberIds || []).indexOf(member.user_id) >= 0
   }
@@ -213,76 +114,59 @@ function inScope(scope, member) {
   return true
 }
 
+// 管理端「应提交」口径：命中任意一个已生效模板的范围即应提交。
+// 无生效模板时沿用旧行为（全员计入口径），页面用 hasTemplate 单独提示。
+function inAnyScope(templates, member) {
+  if (!templates || templates.length === 0) return true
+  return templates.some(function (t) {
+    return inScope(t.scope, member)
+  })
+}
+
 // ---------- 录入 ----------
-async function getMyEntry(teamId, userId, date) {
-  const rows = unwrap(
-    await db
-      .from('daily_entries')
-      .select('*')
-      .eq('team_id', teamId)
-      .eq('user_id', userId)
-      .eq('entry_date', date)
-      .limit(1)
-  )
-  return rows && rows.length ? rows[0] : null
+async function getMyEntry(teamId, date) {
+  return callApi('getMyEntry', { teamId: teamId, date: date })
 }
 
+// 幂等 upsert（team_id + user_id + entry_date），user_id 以服务端 JWT 身份为准
 async function saveEntry(payload) {
-  // 幂等键：team_id + user_id + entry_date（唯一约束）
-  const rows = unwrap(
-    await db
-      .from('daily_entries')
-      .upsert(payload, { onConflict: 'team_id,user_id,entry_date' })
-      .select()
-  )
-  return rows[0]
+  return callApi('saveEntry', { payload: payload })
 }
 
-async function listMyEntries(teamId, userId, limit) {
-  return unwrap(
-    await db
-      .from('daily_entries')
-      .select('*')
-      .eq('team_id', teamId)
-      .eq('user_id', userId)
-      .order('entry_date', { ascending: false })
-      .limit(limit || 60)
-  )
+async function listMyEntries(teamId, limit) {
+  return callApi('listMyEntries', { teamId: teamId, limit: limit || 60 })
 }
+
+// 服务端单次最多返回 1000 条。此处自动翻页拉全，页面仍按「数组」消费，零改动；
+// 超过硬上限时明确报错，绝不静默截断导致年报表少算数据。
+const TEAM_ENTRIES_PAGE_SIZE = 1000
+const TEAM_ENTRIES_MAX_PAGES = 50
 
 async function listTeamEntries(teamId, from, to) {
-  return unwrap(
-    await db
-      .from('daily_entries')
-      .select('*')
-      .eq('team_id', teamId)
-      .gte('entry_date', from)
-      .lte('entry_date', to)
-      .order('entry_date', { ascending: false })
-  )
-}
-
-async function listEntriesByUser(teamId, userId, from, to) {
-  return unwrap(
-    await db
-      .from('daily_entries')
-      .select('*')
-      .eq('team_id', teamId)
-      .eq('user_id', userId)
-      .gte('entry_date', from)
-      .lte('entry_date', to)
-      .order('entry_date', { ascending: false })
-  )
+  const all = []
+  for (let page = 0; page < TEAM_ENTRIES_MAX_PAGES; page++) {
+    const batch = await callApi('listTeamEntries', {
+      teamId: teamId,
+      from: from,
+      to: to,
+      page: page,
+      pageSize: TEAM_ENTRIES_PAGE_SIZE,
+    })
+    const rows = Array.isArray(batch) ? batch : []
+    all.push.apply(all, rows)
+    if (rows.length < TEAM_ENTRIES_PAGE_SIZE) return all
+  }
+  throw new Error('数据量过大，请缩小统计周期后重试')
 }
 
 // ---------- 审计 ----------
 async function logAction(teamId, action, targetType, targetId, detail) {
   try {
-    await db.from('audit_logs').insert({
-      team_id: teamId,
+    await callApi('log', {
+      teamId: teamId,
       action: action,
-      target_type: targetType || null,
-      target_id: targetId ? String(targetId) : null,
+      targetType: targetType || null,
+      targetId: targetId ? String(targetId) : null,
       detail: detail || null,
     })
   } catch (e) {
@@ -291,7 +175,6 @@ async function logAction(teamId, action, targetType, targetId, detail) {
 }
 
 module.exports = {
-  unwrap,
   createTeam,
   findTeamByCode,
   joinTeam,
@@ -310,11 +193,12 @@ module.exports = {
   publishTemplate,
   nextVersion,
   getActiveTemplate,
+  getEffectiveTemplates,
   inScope,
+  inAnyScope,
   getMyEntry,
   saveEntry,
   listMyEntries,
   listTeamEntries,
-  listEntriesByUser,
   logAction,
 }

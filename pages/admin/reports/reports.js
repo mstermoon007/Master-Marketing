@@ -85,8 +85,8 @@ Page({
       const date = this.data.date
       const range = dateUtil.rangeOf(period, date)
       this.setData({ rangeText: dateUtil.periodLabel(period, date) })
-      // 忽略查询者自身范围：以模板下发范围为准，逐成员判定（P1-2）
-      const tpl = await store.getActiveTemplate(ctx.team.team_id, ctx.member, true)
+      // 多模板分别下发时按全部已生效模板取范围并集（P2-3）
+      const templates = await store.getEffectiveTemplates(ctx.team.team_id)
       const entries = await store.listTeamEntries(ctx.team.team_id, range[0], range[1])
       const members = await store.listMembers(ctx.team.team_id)
       const nameMap = {}
@@ -94,9 +94,9 @@ Page({
         nameMap[m.user_id] = m.name
       })
 
-      // 应提交范围：按模板 scope 逐成员判定
-      let targets = members.filter(function (m) {
-        return m.status === 'active' && (!tpl || store.inScope(tpl.scope, m))
+      // 应提交范围：命中任意一个已生效模板即算（与成员端 getActiveTemplate 语义一致）
+      const targets = members.filter(function (m) {
+        return m.status === 'active' && store.inAnyScope(templates, m)
       })
 
       // 跨版本合并（P1-4）：每个 entry 按其所属模板版本的字段定义聚合，按 fieldKey 合并
@@ -105,7 +105,8 @@ Page({
       allTemplates.forEach(function (t) {
         fieldsMap[t.template_id + ':' + t.version] = t.fields || []
       })
-      const currentFields = tpl ? tpl.fields || [] : []
+      // 跨版本聚合兜底：entry 的模板版本找不到时，用最新的生效模板字段
+      const currentFields = templates.length ? (templates[0].fields || []) : []
       const result = stats.aggregateEntriesMulti(entries, function (entry) {
         const key = entry.template_id + ':' + entry.template_version
         return fieldsMap[key] || currentFields
@@ -120,7 +121,7 @@ Page({
         const m = members.filter(function (x) {
           return x.user_id === uid
         })[0]
-        return m && m.status === 'active' && (!tpl || store.inScope(tpl.scope, m))
+        return m && m.status === 'active' && store.inAnyScope(templates, m)
       }).length
 
       const aggByUser = result.byUser
@@ -232,7 +233,7 @@ Page({
       this.setData({
         loading: false,
         hasData: entries.length > 0,
-        hasTemplate: !!tpl,
+        hasTemplate: templates.length > 0,
         summary: {
           entryCount: result.entryCount,
           rowCount: result.rowCount,
