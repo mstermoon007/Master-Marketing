@@ -1,0 +1,92 @@
+# 报数机器人AI · Docker Compose（项目 3，与 feasibility-report 完全隔离）
+# 启动：docker compose up -d --build
+# 停止：docker compose down
+# 数据清理：docker compose down -v  （⚠ 会删除 MySQL 数据卷）
+#
+# 端口规划：
+#   MySQL:   127.0.0.1:3307  → 容器内 3306（避开 feasibility 的 postgres 5432）
+#   Backend: 127.0.0.1:8001  → 容器内 8000（避开 feasibility 的 backend 8000）
+#
+# 凭证来源：从同目录 .env 读取（docker compose 自动加载）。
+# 首次使用：cp .env.example .env 并填入真实值。
+
+services:
+  # ---- MySQL 8（仅绑定 127.0.0.1，不暴露公网）----
+  mysql:
+    image: mysql:8
+    container_name: jinribao_mysql
+    command: >-
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_0900_ai_ci
+      --max-connections=200
+      --innodb-buffer-pool-size=64M
+    mem_limit: 256m
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?请在 .env 设置 DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-jinribao}
+      MYSQL_USER: ${DB_USER:-jinribao}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?请在 .env 设置 DB_PASSWORD}
+    ports:
+      - "127.0.0.1:${DB_HOST_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 首次启动自动导入 schema.sql（仅数据卷为空时执行）
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_PASSWORD:?}"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      - jinribao_network
+
+  # ---- FastAPI 后端 ----
+  backend:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    image: jinribao-backend:latest
+    container_name: jinribao_backend
+    mem_limit: 256m
+    environment:
+      # 容器内网络名访问 MySQL（不是 127.0.0.1）
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: ${DB_USER:-jinribao}
+      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 设置 DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-jinribao}
+      # 微信小程序（必填）
+      WX_APPID: ${WX_APPID:?请在 .env 设置 WX_APPID}
+      WX_SECRET: ${WX_SECRET:?请在 .env 设置 WX_SECRET}
+      WX_HTTP_TIMEOUT: ${WX_HTTP_TIMEOUT:-5}
+      # JWT 签名（必填）
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 设置 JWT_SECRET}
+      JWT_TTL_DAYS: ${JWT_TTL_DAYS:-30}
+      PORT: "8000"
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT:-8001}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      - jinribao_network
+
+volumes:
+  mysql_data:
+    name: jinribao_mysql_data
+
+networks:
+  jinribao_network:
+    driver: bridge

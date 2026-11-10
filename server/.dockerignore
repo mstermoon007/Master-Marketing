@@ -1,0 +1,20 @@
+# 本地开发痕迹
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# 文档和 IDE
+docs/
+*.md
+.idea/
+.vscode/
+.DS_Store
+
+# 测试
+tests/
