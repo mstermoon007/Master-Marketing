@@ -75,10 +75,10 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | `app/auth.py` | `code2session`、JWT 签发/验签、`extract_uid` |
 | `app/config.py` | 环境变量集中读取 + 启动时密钥校验 |
 | `app/db.py` | 连接、24 位 hex 主键、JSON 列序列化、标识符白名单 |
-| `app/handlers/` | `common.py` + 6 个业务模块 + `__init__.py` 注册表（27 个 action） |
+| `app/handlers/` | `common.py` + 7 个业务模块 + `__init__.py` 注册表（35 个 action） |
 | `app/services/expected.py` | 应提交口径唯一实现（任务优先，无任务回退模板范围） |
 | `app/init_db.py` | 按 `sql/schema.sql` 幂等建表 |
-| `sql/schema.sql` | 6 张表 DDL + 唯一索引；增量迁移见 `sql/migrate_p2_report_tasks.sql` |
+| `sql/schema.sql` | 11 张表 DDL + 唯一索引；增量迁移见 `sql/migrate_p2_report_tasks.sql`、`sql/migrate_p3_analysis.sql` |
 | `tests/test_contract.py` | action 对账、JWT、标识符校验等单测 |
 | `.env.example` | 环境变量模板（**真实 `.env` 不入库**） |
 
@@ -96,7 +96,7 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 
 **错误语义**：`401` = 登录过期（前端 `http.js` 清 token → `session.signOut()` → 页面回到登录态）；业务错误用 HTTP 200 + `ok:false` + `message`；服务异常用 HTTP 500 + 通用文案，不回传堆栈。
 
-### 4.2 27 个业务 action
+### 4.2 35 个业务 action
 
 权限列说明：**登录** = 只需有效 JWT；**成员** = `require_member`；**管理员** = `require_manager`（owner/manager）；**本人** = 按 JWT 身份过滤本人数据。
 
@@ -128,6 +128,14 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | 任务 | `getReportTask` | `store.getReportTask(id)` | 任务详情 | 管理员 |
 | 任务 | `getReportTaskStatus` | `store.getReportTaskStatus({teamId, taskId?, date?, from?, to?})` | 应提交口径 + 任务状态机 + 未提交名单；单日/区间通用 | 管理员 |
 | 任务 | `closeReportTask` | `store.closeReportTask(id)` | 关闭任务（幂等） | 管理员 |
+| 分析 | `listAnalysisMetrics` | `store.listAnalysisMetrics(teamId)` | 指标注册表（6 个）| 管理员 |
+| 分析 | `listAnalysisRules` | `store.listAnalysisRules(teamId)` | 规则定义（3 条，含阈值）| 管理员 |
+| 分析 | `runAnalysis` | `store.runAnalysis({teamId, from, to})` | 幂等执行：指标 + 规则 + 报告落库 | 管理员 |
+| 分析 | `retryAnalysisTask` | `store.retryAnalysisTask(id)` | 失败/中断任务原任务重试，不产生新报告 | 管理员 |
+| 分析 | `listAnalysisTasks` | `store.listAnalysisTasks(teamId, limit)` | 分析任务列表 | 管理员 |
+| 分析 | `getAnalysisTask` | `store.getAnalysisTask(id)` | 任务 + 结果 + 发现明细 | 管理员 |
+| 分析 | `listAnalysisFindings` | `store.listAnalysisFindings(taskId)` | 指定任务的规则发现 | 管理员 |
+| 分析 | `getAnalysisOverview` | `store.getAnalysisOverview(teamId)` | 最近结果 + 任务 + 注册表（分析页首屏）| 管理员 |
 | 审计 | `log` | `store.logAction(teamId, action, ...)` | 上报审计，失败不阻断主流程 | 成员 |
 
 > **纯前端判定**（不产生独立网络请求，不在 `HANDLERS` 注册表中）：
@@ -166,6 +174,11 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | `form_templates` | `template_id`、`version`、`fields` JSON、`scope` JSON、`effective_from`、`status`(draft/published/archived) | `uk_tpl_team_id_ver(team_id,template_id,version)` 唯一 |
 | `daily_entries` | `team_id`、`user_id`、`entry_date`、`form_data` JSON、`status`(draft/submitted)、`template_version` | `uk_entry_team_user_date` 唯一（**saveEntry 幂等**） |
 | `report_tasks` | `team_id`、`task_key`、`title`、`template_id`/`template_version`、`scope` JSON、`start_date`/`end_date`、`due_time`、`workdays_only`、`status`(active/closed) | `uk_task_team_key(team_id,task_key)` 唯一；`idx_task_team_status` |
+| `analysis_metrics` | `metric_code`、`version`、`name`、`formula`、`description`、`status` | `uk_metric_code_ver(metric_code,version)` 唯一 |
+| `analysis_rules` | `rule_code`、`version`、`level`、`condition_text`、`params` JSON（阈值）| `uk_rule_code_ver(rule_code,version)` 唯一 |
+| `analysis_tasks` | `team_id`、`analysis_type`、`period_start`/`period_end`、`scope` JSON、`status`(running/success/failed)、`metric_version`、`rule_version`、`retry_count` | `uk_analysis_idem(team_id,analysis_type,period_start,period_end,rule_version)` 唯一（**幂等键**）|
+| `analysis_results` | `task_id`、`data_snapshot_time`、`metric_version`、`rule_version`、`execution_id`、`summary` JSON、`data_quality` JSON、`report_text` | `uk_result_task(task_id)` 唯一 |
+| `analysis_findings` | `task_id`、`result_id`、`rule_code`、`level`、`finding_code`、`detail` JSON、`data_refs` JSON | `uk_finding_task_code(task_id,finding_code)` 唯一 |
 | `audit_logs` | `actor`、`action`、`target_type`、`target_id`、`detail` JSON | `idx_audit_team_time` |
 
 **字段/时间契约（回归关键）**
@@ -183,6 +196,58 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 - 当日没有任务时：回退到「所有已生效模板 `scope` 并集」；两种情况都只统计 `status='active'` 成员。
 - 成员状态：`pending` 待提交 / `submitted` 已提交 / `late` 已逾期 / `backfilled` 已补录 / `closed` 已关闭；补录按提交时间换算东八区日期后与 `entry_date` 比较。
 - 唯一实现：`server/app/services/expected.py` 的 `compute_expected_submitters`，handler 与小程序端不得另写一套统计口径。
+
+**确定性分析引擎（P3）**
+
+指标只允许在 `server/app/services/metrics.py` 实现一份，看板/报表/分析/导出后续必须复用：
+
+| code | 名称 | 口径 | 空值行为 |
+|---|---|---|---|
+| `SUBMIT_RATE` | 提交率 | 应提交范围内已提交人次 / 应提交人次 | 分母为 0 → `null`，展示「数据不足」 |
+| `SUBMIT_COUNT` | 已提交人数 | 每日应提交范围内 `status='submitted'` 去重人数，周期内累加为人次 | 无记录 → 0 |
+| `EXPECTED_COUNT` | 应提交人数 | 每日 `expected_for_day` 结果累加成人次 | 无模板/任务 → 0 |
+| `FIELD_SUM` | 数值字段合计 | 模板 `statType='sum'` 求和；`count` 字段输出计数 | 无有效样本 → `null`，不补零 |
+| `FIELD_AVG` | 数值字段均值 | 字段求和 / 有效样本数 | 样本 0 → `null` |
+| `PERIOD_GROWTH` | 周期增长率 | (本期 - 上期等长周期) / 上期 | 上期为 0/缺失 → `null`；周期未结束 → `incomplete` |
+
+规则同样只有一份（`server/app/services/rules.py`），阈值存 `analysis_rules.params`：
+
+| code | 级别 | 条件 |
+|---|---|---|
+| `SUBMISSION_RATE_LOW_01` | warning | 当日提交率 < 阈值（默认 0.8），分母为 0 的日期不触发 |
+| `METRIC_DROP_01` | warning | 本期指标 < 上期 × 阈值（默认 0.8），上期为 0/缺失不判断 |
+| `MISSING_DATA_01` | info | 周期内应提交但无记录，按成员聚合缺失日期（草稿不算提交） |
+
+执行与追溯：
+- 幂等键 `uk_analysis_idem(team_id, analysis_type, period_start, period_end, rule_version)`；重复触发返回既有结果，不产生第二条任务/报告。
+- 结果固定记录 `data_snapshot_time`、`metric_version`、`rule_version`、`execution_id`，可从任务回放到具体指标与规则版本。
+- 执行器写操作白名单仅 `analysis_*`；`services/dataset.py` 只有 SELECT，禁止引用 `db.insert/update/remove/execute`。
+- 报告为确定性拼接，不含模型推断；无数据时明确输出「数据不足，暂不生成结论」，不补零。
+
+样例报告（真实输出格式）：
+
+```text
+【分析报告】销售一队 · 2026-11-10 至 2026-11-16
+数据快照：2026-11-16T10:00:00.000Z · 指标版本 v1 · 规则版本 v1 · 执行号：<24位hex>
+
+一、提交情况
+应提交 105 人次，已提交 90 人次，提交率 85.7%。
+
+二、字段指标
+- 到访（次）：1234（有效样本 90）
+
+三、趋势
+- 提交率：本期 0.86，上期 0.92，增长率 -6.5%
+
+四、异常与提醒
+- [预警] 2026-11-12 提交率 66.7%，低于阈值 80%
+- [提示] 张三 有 3 天应提交但无记录
+
+五、数据质量
+- 应提交但无提交记录 15 人次
+
+本报告由确定性规则拼接生成，不含模型推断。
+```
 
 ---
 
@@ -293,7 +358,7 @@ python -m pytest -q         # 契约与鉴权单测
 
 > 当前会话无命令行工具、无本地文件删除能力，也未配置 Python / JS 语言服务（LSP 探测均返回 "No LSP server configured"），因此编译、单测与 `node --check` 必须在**本机终端**执行。
 > `server/finish.sh` 已打包为 6 项一键验证：默认「列清单 → 输入 `yes` → 删除 + 验证」，`--yes` 免确认，`--verify-only` 只验证不删除；任一失败项会汇总为 `FAIL=1` 退出码。
-> 会话内**已实际执行**的静态验证：前端 27 个 action ↔ 后端 27 个 `HANDLERS`、云开发引用 0 命中、旧名称 0 命中（仅脚本检索模式自引用）、死字段 0 命中、`alwaysApply: true` 仅剩已改写的 `CODEBUDDY.md` 与脚本检索模式。
+> 会话内**已实际执行**的静态验证：前端 35 个 action ↔ 后端 35 个 `HANDLERS`、云开发引用 0 命中、旧名称 0 命中（仅脚本检索模式自引用）、死字段 0 命中、`alwaysApply: true` 仅剩已改写的 `CODEBUDDY.md` 与脚本检索模式。
 
 ---
 
@@ -336,6 +401,8 @@ python -m pytest -q         # 契约与鉴权单测
 | 2026-11-09 | 全链路操作场景走查后修 P0/P1：修复 records 跳 tabBar 断点、限制一人一团队、发布保留生效日、401 统一回登录页、停用成员明确提示、占位域名诊断、服务端提交字段复核与成员校验，并补业务流程单测 |
 | 2026-11-09 | 走查 P2 边界项：补录入口贯通（首页日期切换 + records 跳转 + 服务端 31 天窗口）、listTeamEntries 自动分页、多模板 scope 并集、停用文案纠偏、草稿预览仅管理员、清理 hasTeam/myTeams 死字段、发布版本号并发加锁顺延；新增 5 个流程单测 |
 | 2026-11-09 | 处理遗留项：内容中和 8 个云开发残留文件 + 3 个自动加载规则入口；`CODEBUDDY.md` 改写为自有服务端开发约定并移出删除清单；`finish.sh` 重写为三模式 + 6 项验证（action 契约改由 pytest 校验）；新增 §16 真机联调清单 |
+| 2026-11-16 | P2 填报任务：`report_tasks` + 5 个 action + 服务端应提交口径单点实现，看板/报表改调 `getReportTaskStatus` |
+| 2026-11-16 | P3 确定性分析：5 张 `analysis_*` 表 + 6 指标/3 规则单点实现 + 幂等执行与只读护栏 + 8 个 action + 小程序分析页；测试覆盖空分母、缺失不补零、阈值边界、幂等复用与写权限断言 |
 
 ---
 

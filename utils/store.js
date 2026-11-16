@@ -139,6 +139,41 @@ async function closeReportTask(id) {
   return callApi('closeReportTask', { id: id })
 }
 
+// ---------- 分析引擎（P3）----------
+// 指标/规则/结果全部由服务端确定性计算，前端只做展示，不在本地重算。
+async function listAnalysisMetrics(teamId) {
+  return callApi('listAnalysisMetrics', { teamId: teamId })
+}
+
+async function listAnalysisRules(teamId) {
+  return callApi('listAnalysisRules', { teamId: teamId })
+}
+
+// params: { teamId, from, to }；同一周期重复调用返回既有结果（幂等）
+async function runAnalysis(params) {
+  return callApi('runAnalysis', params || {})
+}
+
+async function retryAnalysisTask(id) {
+  return callApi('retryAnalysisTask', { id: id })
+}
+
+async function listAnalysisTasks(teamId, limit) {
+  return callApi('listAnalysisTasks', { teamId: teamId, limit: limit || 20 })
+}
+
+async function getAnalysisTask(id) {
+  return callApi('getAnalysisTask', { id: id })
+}
+
+async function listAnalysisFindings(taskId) {
+  return callApi('listAnalysisFindings', { taskId: taskId })
+}
+
+async function getAnalysisOverview(teamId) {
+  return callApi('getAnalysisOverview', { teamId: teamId })
+}
+
 // ---------- 录入 ----------
 async function getMyEntry(teamId, date) {
   return callApi('getMyEntry', { teamId: teamId, date: date })
@@ -216,6 +251,14 @@ module.exports = {
   getReportTask,
   getReportTaskStatus,
   closeReportTask,
+  listAnalysisMetrics,
+  listAnalysisRules,
+  runAnalysis,
+  retryAnalysisTask,
+  listAnalysisTasks,
+  getAnalysisTask,
+  listAnalysisFindings,
+  getAnalysisOverview,
   getMyEntry,
   saveEntry,
   listMyEntries,

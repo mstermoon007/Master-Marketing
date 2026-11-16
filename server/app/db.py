@@ -27,6 +27,11 @@ JSON_COLUMNS: Dict[str, List[str]] = {
     "daily_entries": ["form_data"],
     "audit_logs": ["detail"],
     "report_tasks": ["scope"],
+    "analysis_metrics": [],
+    "analysis_rules": ["params"],
+    "analysis_tasks": ["scope"],
+    "analysis_results": ["summary", "data_quality"],
+    "analysis_findings": ["detail", "data_refs"],
 }
 
 

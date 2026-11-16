@@ -166,6 +166,7 @@ Page({
           { key: 'tasks', title: '填报任务', desc: '按周期下发任务 / 查看完成进度' },
           { key: 'templates', title: '模板管理', desc: '创建 / 预览 / 发布下发模板' },
           { key: 'reports', title: '报表中心', desc: '日 / 周 / 月 / 年统计' },
+          { key: 'analysis', title: '数据分析', desc: '确定性指标 / 异常规则 / 结构化报告' },
           { key: 'members', title: '成员管理', desc: '角色 / 启停 / 邀请码' },
         ]
       : []
@@ -576,6 +577,7 @@ Page({
       tasks: '/pages/admin/tasks/tasks',
       templates: '/pages/admin/templates/templates',
       reports: '/pages/admin/reports/reports',
+      analysis: '/pages/admin/analysis/analysis',
       members: '/pages/admin/members/members',
     }
     if (urls[key]) wx.navigateTo({ url: urls[key] })

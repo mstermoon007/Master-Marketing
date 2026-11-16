@@ -281,7 +281,9 @@ def test_save_entry_requires_team_and_date(monkeypatch):
 # ---------------------------------------------------------------- 库结构快照
 
 EXPECTED_TABLES = ("teams", "members", "form_templates", "daily_entries",
-                   "report_tasks", "audit_logs")
+                   "report_tasks", "audit_logs", "analysis_metrics",
+                   "analysis_rules", "analysis_tasks", "analysis_results",
+                   "analysis_findings")
 
 EXPECTED_COLUMNS = {
     "teams": ["id", "team_id", "name", "owner_uid", "config", "created_at"],
@@ -298,6 +300,22 @@ EXPECTED_COLUMNS = {
                      "created_at", "closed_at"],
     "audit_logs": ["id", "team_id", "actor", "action", "target_type",
                    "target_id", "detail", "created_at"],
+    "analysis_metrics": ["id", "metric_code", "version", "name", "category",
+                         "unit", "formula", "description", "status", "created_at"],
+    "analysis_rules": ["id", "rule_code", "version", "name", "level",
+                       "condition_text", "description", "params", "status",
+                       "created_at"],
+    "analysis_tasks": ["id", "team_id", "analysis_type", "period_start",
+                       "period_end", "scope", "status", "metric_version",
+                       "rule_version", "request_by", "error_message",
+                       "retry_count", "created_at", "started_at", "finished_at"],
+    "analysis_results": ["id", "task_id", "team_id", "analysis_type",
+                         "period_start", "period_end", "data_snapshot_time",
+                         "metric_version", "rule_version", "execution_id",
+                         "summary", "data_quality", "report_text", "created_at"],
+    "analysis_findings": ["id", "task_id", "result_id", "rule_code",
+                          "rule_version", "level", "finding_code", "title",
+                          "detail", "data_refs", "created_at"],
 }
 
 EXPECTED_KEYS = (
@@ -313,6 +331,14 @@ EXPECTED_KEYS = (
     "uk_task_team_key",
     "idx_task_team_status",
     "idx_audit_team_time",
+    "uk_metric_code_ver",
+    "uk_rule_code_ver",
+    "uk_analysis_idem",
+    "uk_result_task",
+    "uk_finding_task_code",
+    "idx_analysis_team_time",
+    "idx_result_team_time",
+    "idx_finding_task",
 )
 
 

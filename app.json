@@ -10,6 +10,7 @@
     "pages/admin/template-edit/template-edit",
     "pages/admin/template-preview/template-preview",
     "pages/admin/reports/reports",
+    "pages/admin/analysis/analysis",
     "pages/admin/members/members"
   ],
   "window": {

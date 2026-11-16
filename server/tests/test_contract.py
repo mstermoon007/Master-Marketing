@@ -26,6 +26,13 @@ P2_ACTIONS = {
     "getReportTaskStatus", "closeReportTask",
 }
 
+# P3 新增的 8 个确定性分析 action
+P3_ACTIONS = {
+    "listAnalysisMetrics", "listAnalysisRules", "runAnalysis",
+    "retryAnalysisTask", "listAnalysisTasks", "getAnalysisTask",
+    "listAnalysisFindings", "getAnalysisOverview",
+}
+
 # listEntriesByUser 在旧云函数中零调用，审阅确认为死分支，本次清理未迁移
 REMOVED_DEAD_ACTIONS = {"listEntriesByUser"}
 
@@ -36,8 +43,8 @@ def test_all_legacy_actions_migrated():
 
 
 def test_p2_actions_registered():
-    assert set(HANDLERS) == LEGACY_ACTIONS | P2_ACTIONS
-    assert len(HANDLERS) == 27
+    assert set(HANDLERS) == LEGACY_ACTIONS | P2_ACTIONS | P3_ACTIONS
+    assert len(HANDLERS) == 35
 
 
 def test_unknown_action_raises_business_error():
@@ -84,11 +91,14 @@ def test_string_ids_match_legacy_oid_shape():
 def test_json_column_mapping_covers_all_tables():
     assert set(db.JSON_COLUMNS) == {
         "teams", "members", "form_templates", "daily_entries", "audit_logs",
-        "report_tasks",
+        "report_tasks", "analysis_metrics", "analysis_rules", "analysis_tasks",
+        "analysis_results", "analysis_findings",
     }
     assert "form_data" in db.JSON_COLUMNS["daily_entries"]
     assert "fields" in db.JSON_COLUMNS["form_templates"]
     assert db.JSON_COLUMNS["report_tasks"] == ["scope"]
+    assert db.JSON_COLUMNS["analysis_rules"] == ["params"]
+    assert db.JSON_COLUMNS["analysis_results"] == ["summary", "data_quality"]
 
 
 def test_schema_has_required_unique_keys():
@@ -96,6 +106,8 @@ def test_schema_has_required_unique_keys():
     for key in (
         "uk_teams_team_id", "uk_members_team_user",
         "uk_tpl_team_id_ver", "uk_entry_team_user_date", "uk_task_team_key",
+        "uk_metric_code_ver", "uk_rule_code_ver", "uk_analysis_idem",
+        "uk_result_task", "uk_finding_task_code",
     ):
         assert key in sql
 

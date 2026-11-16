@@ -98,6 +98,101 @@ CREATE TABLE IF NOT EXISTS `report_tasks` (
   KEY `idx_task_team_status` (`team_id`, `status`, `start_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 分析指标注册表（P3）：metric_code + version 唯一，口径由服务层单点实现
+CREATE TABLE IF NOT EXISTS `analysis_metrics` (
+  `id`          CHAR(24)     NOT NULL,
+  `metric_code` VARCHAR(64)  NOT NULL,
+  `version`     INT          NOT NULL DEFAULT 1,
+  `name`        VARCHAR(64)  NOT NULL,
+  `category`    VARCHAR(32)  NOT NULL DEFAULT 'core',
+  `unit`        VARCHAR(16)  NULL,
+  `formula`     VARCHAR(255) NULL,
+  `description` VARCHAR(512) NULL,
+  `status`      VARCHAR(16)  NOT NULL DEFAULT 'active' COMMENT 'active|inactive',
+  `created_at`  VARCHAR(32)  NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_metric_code_ver` (`metric_code`, `version`),
+  KEY `idx_metric_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 分析规则定义（P3）：阈值放 params，不硬编码
+CREATE TABLE IF NOT EXISTS `analysis_rules` (
+  `id`             CHAR(24)     NOT NULL,
+  `rule_code`      VARCHAR(64)  NOT NULL,
+  `version`        INT          NOT NULL DEFAULT 1,
+  `name`           VARCHAR(128) NOT NULL,
+  `level`          VARCHAR(16)  NOT NULL DEFAULT 'warning' COMMENT 'info|warning|critical',
+  `condition_text` VARCHAR(512) NULL,
+  `description`    VARCHAR(512) NULL,
+  `params`         JSON         NULL COMMENT '{ threshold }',
+  `status`         VARCHAR(16)  NOT NULL DEFAULT 'active' COMMENT 'active|inactive',
+  `created_at`     VARCHAR(32)  NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_rule_code_ver` (`rule_code`, `version`),
+  KEY `idx_rule_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 分析任务（P3）：幂等唯一键见升级文档 §3.4，重复触发不产生第二条结果
+CREATE TABLE IF NOT EXISTS `analysis_tasks` (
+  `id`             CHAR(24)     NOT NULL,
+  `team_id`        VARCHAR(32)  NOT NULL,
+  `analysis_type`  VARCHAR(32)  NOT NULL DEFAULT 'period' COMMENT 'period',
+  `period_start`   VARCHAR(10)  NOT NULL COMMENT 'YYYY-MM-DD',
+  `period_end`     VARCHAR(10)  NOT NULL COMMENT 'YYYY-MM-DD',
+  `scope`          JSON         NULL COMMENT '本次实际计算范围快照',
+  `status`         VARCHAR(16)  NOT NULL DEFAULT 'running' COMMENT 'running|success|failed',
+  `metric_version` INT          NOT NULL DEFAULT 1,
+  `rule_version`   INT          NOT NULL DEFAULT 1,
+  `request_by`     VARCHAR(128) NULL,
+  `error_message`  VARCHAR(512) NULL,
+  `retry_count`    INT          NOT NULL DEFAULT 0,
+  `created_at`     VARCHAR(32)  NOT NULL,
+  `started_at`     VARCHAR(32)  NULL,
+  `finished_at`    VARCHAR(32)  NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_analysis_idem` (`team_id`, `analysis_type`, `period_start`, `period_end`, `rule_version`),
+  KEY `idx_analysis_team_time` (`team_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 分析结果（P3）：每个任务一条，含快照时间/指标版本/规则版本/执行号，可追溯
+CREATE TABLE IF NOT EXISTS `analysis_results` (
+  `id`                 CHAR(24)     NOT NULL,
+  `task_id`            CHAR(24)     NOT NULL,
+  `team_id`            VARCHAR(32)  NOT NULL,
+  `analysis_type`      VARCHAR(32)  NOT NULL DEFAULT 'period',
+  `period_start`       VARCHAR(10)  NOT NULL,
+  `period_end`         VARCHAR(10)  NOT NULL,
+  `data_snapshot_time` VARCHAR(32)  NOT NULL,
+  `metric_version`     INT          NOT NULL DEFAULT 1,
+  `rule_version`       INT          NOT NULL DEFAULT 1,
+  `execution_id`       VARCHAR(64)  NOT NULL,
+  `summary`            JSON         NULL COMMENT '指标/日报表/质量检查',
+  `data_quality`       JSON         NULL COMMENT '缺失/重复/类型/单位',
+  `report_text`        MEDIUMTEXT   NULL COMMENT '结构化拼接报告，无模型生成',
+  `created_at`         VARCHAR(32)  NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_result_task` (`task_id`),
+  KEY `idx_result_team_time` (`team_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 分析发现/异常明细（P3）：每条可回溯到规则与具体数据行
+CREATE TABLE IF NOT EXISTS `analysis_findings` (
+  `id`            CHAR(24)     NOT NULL,
+  `task_id`       CHAR(24)     NOT NULL,
+  `result_id`     CHAR(24)     NULL,
+  `rule_code`     VARCHAR(64)  NOT NULL,
+  `rule_version`  INT          NOT NULL DEFAULT 1,
+  `level`         VARCHAR(16)  NOT NULL DEFAULT 'info',
+  `finding_code`  VARCHAR(128) NOT NULL,
+  `title`         VARCHAR(255) NOT NULL,
+  `detail`        JSON         NULL,
+  `data_refs`     JSON         NULL,
+  `created_at`    VARCHAR(32)  NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_finding_task_code` (`task_id`, `finding_code`),
+  KEY `idx_finding_task` (`task_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 审计日志
 CREATE TABLE IF NOT EXISTS `audit_logs` (
   `id`          CHAR(24)     NOT NULL,

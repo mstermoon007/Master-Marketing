@@ -11,9 +11,9 @@
 | 文档 | 内容 |
 |---|---|
 | `README.md`（本文） | 项目总览、技术栈、快速开始、文档导航 |
-| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | **开发文档**：架构、接口契约、22 个 action、数据表、安全约定、回归清单、**§16 真机联调清单** |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | **开发文档**：架构、接口契约、35 个 action、数据表、安全约定、回归清单、**§16 真机联调清单** |
 | [`server/README.md`](server/README.md) | 服务端部署与运维（环境变量、建表、进程、域名） |
-| [`server/sql/schema.sql`](server/sql/schema.sql) | MySQL 8 建表脚本（5 张表 + 唯一索引） |
+| [`server/sql/schema.sql`](server/sql/schema.sql) | MySQL 8 建表脚本（11 张表 + 唯一索引） |
 | `CODEBUDDY.md` | **项目开发约定**（IDE 自动加载）：自有服务端架构与强制约束，**保留项，勿删** |
 | `server/tests/` | 契约、鉴权与业务流程单元测试 |
 | `server/finish.sh` | 一次性清理无效文件 + 6 项静态验证；`--verify-only` 只验证不删除 |
@@ -21,16 +21,16 @@
 ## 架构
 
 ```
-微信小程序（10 个页面 + dynamic-form 组件）
+微信小程序（11 个页面 + dynamic-form 组件）
    │  utils/store.js    业务动作收敛为 action + payload
    │  utils/http.js     wx.request + Authorization: Bearer <JWT>
    ▼
 自有服务端 server/（FastAPI）
    │  POST /auth/login  wx.login code → code2session → 签发 JWT
-   │  POST /api         22 个 action 统一分发，验签后注入身份
+   │  POST /api         35 个 action 统一分发，验签后注入身份
    │  GET  /health      健康检查
    ▼
-MySQL 8（teams / members / form_templates / daily_entries / audit_logs）
+MySQL 8（teams / members / form_templates / daily_entries / report_tasks / audit_logs / analysis_*）
 ```
 
 | 层 | 技术 | 入口 |

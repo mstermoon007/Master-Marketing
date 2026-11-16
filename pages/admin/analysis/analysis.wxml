@@ -1,0 +1,159 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{denied}}" class="center-page">
+    <view class="login-title">无权限</view>
+    <text class="sub">仅管理员 / 负责人可查看数据分析</text>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
+
+    <view class="card">
+      <view class="head-line">
+        <view class="card-title">数据分析</view>
+        <text class="tag tag-brand" bindtap="toggleRules">{{showRules ? '收起规则' : '指标与规则'}}</text>
+      </view>
+      <text class="weak">全部指标由服务端确定性计算；相同团队与周期重复执行返回同一份结果。</text>
+      <view class="form-two" style="margin-top:20rpx;">
+        <view class="form-row">
+          <text class="form-label">开始日期</text>
+          <picker mode="date" value="{{from}}" bindchange="onFrom">
+            <view class="input picker-input">{{from}}</view>
+          </picker>
+        </view>
+        <view class="form-row">
+          <text class="form-label">结束日期</text>
+          <picker mode="date" value="{{to}}" bindchange="onTo">
+            <view class="input picker-input">{{to}}</view>
+          </picker>
+        </view>
+      </view>
+      <button class="btn-primary" bindtap="runAnalysis" disabled="{{running}}">
+        {{running ? '分析中…' : '开始分析'}}
+      </button>
+    </view>
+
+    <view class="card" wx:if="{{showRules}}">
+      <view class="card-title">指标定义（v{{metricDefs.length ? metricDefs[0].version : 1}}）</view>
+      <view wx:for="{{metricDefs}}" wx:key="code" class="def-item">
+        <text class="def-name">{{item.name}} · {{item.code}}</text>
+        <text class="weak">{{item.formula}}</text>
+        <text class="weak">{{item.description}}</text>
+      </view>
+      <text wx:if="{{!metricDefs.length}}" class="weak">暂无注册指标</text>
+
+      <view class="divider"></view>
+      <view class="card-title">规则（阈值可配置）</view>
+      <view wx:for="{{rules}}" wx:key="code" class="def-item">
+        <text class="def-name">{{item.name}} · {{item.code}}</text>
+        <text class="weak">{{item.conditionText}}</text>
+        <text class="weak">{{item.description}}</text>
+      </view>
+    </view>
+
+    <block wx:if="{{result}}">
+      <view class="card">
+        <view class="head-line">
+          <view class="card-title">分析结果</view>
+          <text class="tag tag-gray">{{result.reused ? '复用已有结果' : '本次执行'}}</text>
+        </view>
+        <text class="weak">{{result.task.dateText}} · {{result.task.statusText}}</text>
+
+        <view class="stat-row">
+          <view class="stat-box">
+            <text class="stat-num stat-brand">{{overall.expectedCount || 0}}</text>
+            <text class="stat-label">应提交（人次）</text>
+          </view>
+          <view class="stat-box">
+            <text class="stat-num stat-ok">{{overall.submittedCount || 0}}</text>
+            <text class="stat-label">已提交（人次）</text>
+          </view>
+          <view class="stat-box">
+            <text class="stat-num stat-warn">{{overall.submitRateText}}</text>
+            <text class="stat-label">提交率</text>
+          </view>
+        </view>
+
+        <view class="meta-lines">
+          <text class="weak">数据快照：{{result.snapshot}}</text>
+          <text class="weak">指标 v{{result.task.metricVersion}} · 规则 v{{result.task.ruleVersion}}</text>
+          <text class="weak">执行号：{{result.executionId}}</text>
+        </view>
+
+        <view class="daily-wrap" wx:if="{{dailyChips.length}}">
+          <view class="chip" wx:for="{{dailyChips}}" wx:key="date">
+            <text class="chip-date">{{item.date}}</text>
+            <text class="chip-text">{{item.text}} · {{item.rate}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="card">
+        <view class="card-title">指标</view>
+        <block wx:for="{{metrics}}" wx:key="code">
+          <view wx:if="{{item.code === 'FIELD_SUM' || item.code === 'FIELD_AVG'}}" class="metric-block">
+            <text class="metric-name">{{item.name}}</text>
+            <view wx:for="{{item.fields}}" wx:for-item="f" wx:key="fieldKey" class="metric-row">
+              <text>{{f.label}}{{f.unit ? '（' + f.unit + '）' : ''}}</text>
+              <text class="metric-value">{{f.valueText}}<text class="weak" wx:if="{{f.samples}}"> · {{f.samples}} 样本</text></text>
+            </view>
+            <text wx:if="{{!item.fields.length}}" class="weak">本期没有对应字段</text>
+          </view>
+          <view wx:elif="{{item.code === 'PERIOD_GROWTH'}}" class="metric-block">
+            <text class="metric-name">{{item.name}}</text>
+            <view wx:for="{{item.growth}}" wx:for-item="g" wx:key="fieldKey" class="metric-row">
+              <text>{{g.label}}</text>
+              <text class="metric-value">{{g.displayText}}</text>
+            </view>
+          </view>
+          <view wx:else class="metric-row">
+            <text>{{item.name}}</text>
+            <text class="metric-value">{{item.valueText}}</text>
+          </view>
+        </block>
+      </view>
+
+      <view class="card">
+        <view class="card-title">异常与提醒（{{findings.length}}）</view>
+        <text wx:if="{{!findings.length}}" class="weak">未触发任何规则。</text>
+        <view wx:for="{{findings}}" wx:key="id" class="finding">
+          <view class="finding-head">
+            <text class="tag {{item.level === 'warning' ? 'tag-warn' : 'tag-gray'}}">{{item.levelText}}</text>
+            <text class="finding-title">{{item.title}}</text>
+          </view>
+          <text class="weak">{{item.ruleCode}} v{{item.ruleVersion}}</text>
+        </view>
+      </view>
+
+      <view class="card" wx:if="{{quality.length}}">
+        <view class="card-title">数据质量</view>
+        <view wx:for="{{quality}}" wx:key="code" class="metric-row">
+          <text>{{item.message}}</text>
+        </view>
+      </view>
+
+      <view class="card">
+        <view class="card-title">结构化报告</view>
+        <text class="report-text">{{result.reportText}}</text>
+      </view>
+    </block>
+
+    <view class="card" wx:else>
+      <text class="weak">选择周期后点击「开始分析」，将生成提交率、字段指标、环比趋势、规则发现与结构化报告。</text>
+    </view>
+
+    <view class="card">
+      <view class="card-title">历史任务</view>
+      <text wx:if="{{!tasks.length}}" class="weak">暂无分析记录</text>
+      <view wx:for="{{tasks}}" wx:key="id" class="task-item" data-id="{{item.id}}" bindtap="onTaskTap">
+        <view class="task-main">
+          <text class="task-date">{{item.dateText}}</text>
+          <text class="weak">{{item.timeText}} · 指标 v{{item.metricVersion}} · 规则 v{{item.ruleVersion}}</text>
+          <text wx:if="{{item.errorMessage}}" class="error-text">{{item.errorMessage}}</text>
+        </view>
+        <text class="tag {{item.status === 'success' ? 'tag-ok' : (item.status === 'failed' ? 'tag-warn' : 'tag-gray')}}">{{item.statusText}}</text>
+        <text wx:if="{{item.status === 'failed'}}" class="tag tag-brand" data-id="{{item.id}}" catchtap="onRetry">重试</text>
+      </view>
+    </view>
+  </block>
+</view>
