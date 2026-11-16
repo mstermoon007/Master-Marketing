@@ -1,9 +1,7 @@
 """action -> handler 注册表。
 
-与旧云函数 cloudfunctions/api/index.js 的 handlers 表对应，
-历史 22 个业务 action（零调用的 listEntriesByUser 审阅后未迁移），
-P2 新增 5 个填报任务 action，P3 新增 8 个分析 action，共 35 个；
-另有 /auth/login 登录端点。
+历史 22 个业务 action（零调用的 listEntriesByUser 未迁移）+ P2 填报任务 5 个
++ P3 分析 8 个，共 35 个；另有 /auth/login 登录端点。
 """
 from . import analysis, audit, entries, members, tasks, teams, templates
 from .common import BusinessError

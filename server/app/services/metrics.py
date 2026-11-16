@@ -52,10 +52,6 @@ def definitions():
     return [dict(d, version=METRIC_VERSION) for d in METRIC_DEFINITIONS]
 
 
-def definition_map():
-    return {d["code"]: d for d in METRIC_DEFINITIONS}
-
-
 def stat_type(field):
     """字段统计语义：优先 statType，兼容 P2 之前的 aggregate 配置。"""
     if not isinstance(field, dict):

@@ -1,7 +1,16 @@
 -- P3 确定性分析引擎：5 张分析表（幂等，可重复执行）
--- 执行：mysql -u root -p jinribao < sql/migrate_p3_analysis.sql
--- 说明：只新增分析表，不修改任何业务表结构；指标/规则注册数据由服务层
---       ensure_registry() 首次运行时幂等写入，避免 SQL 与代码两份口径。
+--
+-- 前置：已执行 migrate_p2_report_tasks.sql（P2）或全新库执行 schema.sql
+-- 执行（项目根目录）：
+--   docker exec -i jinribao-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" jinribao \
+--     < server/sql/migrate_p3_analysis.sql
+-- 或：mysql -h HOST -u USER -p jinribao < server/sql/migrate_p3_analysis.sql
+--
+-- 特性：CREATE TABLE IF NOT EXISTS，可重复执行；不修改/删除任何业务表。
+-- 指标与规则注册数据由服务层 ensure_registry() 首次运行时幂等写入，避免 SQL 与代码两份口径。
+-- 回滚：仅 DROP 本脚本创建的 5 张 analysis_* 表；执行前请先备份。
+
+SET NAMES utf8mb4;
 
 USE `jinribao`;
 
@@ -94,3 +103,40 @@ CREATE TABLE IF NOT EXISTS `analysis_findings` (
   UNIQUE KEY `uk_finding_task_code` (`task_id`, `finding_code`),
   KEY `idx_finding_task` (`task_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 部署自检 1：5 张表应与预期列数一致（10 / 10 / 15 / 14 / 11）
+SELECT 'analysis_metrics' AS table_name, COUNT(*) AS column_count
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analysis_metrics'
+UNION ALL
+SELECT 'analysis_rules', COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analysis_rules'
+UNION ALL
+SELECT 'analysis_tasks', COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analysis_tasks'
+UNION ALL
+SELECT 'analysis_results', COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analysis_results'
+UNION ALL
+SELECT 'analysis_findings', COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analysis_findings';
+
+-- 部署自检 2：幂等键与结果唯一键应各返回 1（SEQ_IN_INDEX=1 只计键存在性）
+SELECT 'uk_analysis_idem' AS key_name, COUNT(*) AS unique_key_found
+FROM information_schema.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analysis_tasks'
+  AND INDEX_NAME = 'uk_analysis_idem' AND NON_UNIQUE = 0 AND SEQ_IN_INDEX = 1
+UNION ALL
+SELECT 'uk_result_task', COUNT(*)
+FROM information_schema.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analysis_results'
+  AND INDEX_NAME = 'uk_result_task' AND NON_UNIQUE = 0 AND SEQ_IN_INDEX = 1
+UNION ALL
+SELECT 'uk_finding_task_code', COUNT(*)
+FROM information_schema.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analysis_findings'
+  AND INDEX_NAME = 'uk_finding_task_code' AND NON_UNIQUE = 0 AND SEQ_IN_INDEX = 1;

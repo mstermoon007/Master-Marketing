@@ -212,4 +212,4 @@ function aggregateEntriesMulti(entries, resolver) {
   }
 }
 
-module.exports = { aggregateEntries, aggregateEntriesMulti, aggregateFields, displayValue, round2 }
+module.exports = { aggregateEntriesMulti, displayValue }

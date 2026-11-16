@@ -1,7 +1,7 @@
 # 报数机器人AI · 服务端部署说明
 
 自有服务端（Python 3 + FastAPI + MySQL 8），替代原微信云开发云函数。
-对外保持同一套 `action + payload` 契约，小程序端 10 个页面零改动。
+对外保持同一套 `action + payload` 契约，小程序端 11 个页面共用同一套 action。
 
 > 项目总览见 [`../README.md`](../README.md)，完整接口/数据表/回归清单见 [`../docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md)。
 > 本文件只讲**服务端部署与运维**，接口与字段约定以开发文档为准。
@@ -14,11 +14,14 @@
 | `app/auth.py` | `code2session` + JWT 签发/验签 |
 | `app/config.py` | 环境变量 + 启动时密钥校验 |
 | `app/db.py` | MySQL 连接、字符串主键、JSON 列、标识符白名单 |
-| `app/handlers/` | 22 个在用业务 action（团队/成员/模板/录入/审计） |
+| `app/handlers/` | 35 个在用业务 action（团队/成员/模板/录入/任务/分析/审计） |
+| `app/services/` | 应提交口径、指标计算、规则引擎、分析执行（单点实现） |
 | `app/init_db.py` | 幂等建表入口 |
-| `sql/schema.sql` | 5 张表 DDL + 唯一索引 |
+| `sql/schema.sql` | 11 张表全量 DDL + 唯一索引（全新安装用） |
+| `sql/migrate_p2_report_tasks.sql` | P2 增量迁移：填报任务表（存量库用，幂等） |
+| `sql/migrate_p3_analysis.sql` | P3 增量迁移：分析引擎 5 张表（存量库用，幂等，依赖 P2） |
 | `tests/` | 契约、鉴权与业务流程单元测试（不依赖真实 MySQL） |
-| `finish.sh` | 项目无效文件清理 + 6 项静态验证（项目根执行）；支持 `--yes` 免确认、`--verify-only` 只验证不删除 |
+| `finish.sh` | 6 项静态验证（项目根执行）；只验证，不修改或删除任何文件 |
 
 ## 部署步骤
 
@@ -27,13 +30,37 @@ cd server
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env      # 填入 DB / WX_APPID / WX_SECRET / JWT_SECRET
-python -m app.init_db     # 建库建表（幂等）
-python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+python -m app.init_db     # 建库建表（全新安装：11 张表，幂等）
 python -m pytest -q       # 部署前回归
+python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
 
 生产建议 `gunicorn -k uvicorn.workers.UvicornWorker` 或 systemd 托管，前面挂 Nginx 终止 TLS。
 环境变量清单与含义见开发文档 §10；`.env` 已由 `.gitignore` 排除，不得入库。
+
+### 存量库升级（已在用旧版表结构）
+
+`app.init_db` 只执行 `CREATE TABLE IF NOT EXISTS`，**不会给已有表补新增列**。存量库按顺序执行增量迁移：
+
+```bash
+cd server
+
+# P2：填报任务表（依赖 teams / form_templates）
+docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
+  < sql/migrate_p2_report_tasks.sql
+
+# P3：分析引擎 5 张表（依赖 P2 的 report_tasks）
+docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
+  < sql/migrate_p3_analysis.sql
+```
+
+- 两个脚本均幂等：重复执行不报错、不丢数据，可在部署流水线里反复跑。
+- 脚本末尾自带部署自检 `SELECT`：
+  - P2 返回 `report_tasks` 列数与 `has_scope_json`（应为 `15` / `1`），`uk_task_team_key` 唯一键计数应为 `1`。
+  - P3 返回 5 张表列数（`10 / 10 / 15 / 14 / 11`），三个唯一键 `uk_analysis_idem` / `uk_result_task` / `uk_finding_task_code` 计数均应为 `1`。
+- 自检数字不符即视为迁移未生效，先排查再启动服务。
+- 非 Docker 部署把 `docker exec -i jinribao-mysql mysql ...` 换成 `mysql -h <host> -u <user> -p <db>` 即可，脚本内含 `SET NAMES utf8mb4;`。
+
 
 ## 小程序端必须同步配置
 

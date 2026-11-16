@@ -1,7 +1,7 @@
 # 报数机器人AI · 开发文档
 
 > 版本：2.0（自有服务器架构）｜更新日期：2026-11-09
-> 适用代码：小程序前端根目录 + `server/` 服务端工程。本文是唯一开发依据；`rules/`、`CODEBUDDY.md`、`codebuddy-plugin/` 为旧 CloudBase 脚手架残留，**不再适用**（见 §14）。
+> 适用代码：小程序前端根目录 + `server/` 服务端工程。本文是唯一开发依据；`CODEBUDDY.md` 已改写为自有服务端开发约定（强制约束仍有效）；`rules/`、`codebuddy-plugin/` 为旧 CloudBase 脚手架残留，**已物理删除**（见 §14）。
 
 ---
 
@@ -60,7 +60,7 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | `app.js` / `app.json` / `app.wxss` | 全局入口、页面注册、全局导航标题、主题变量 | 新增页面须注册 `app.json` |
 | `pages/` | 11 个页面：index / records / profile / team + admin 下 7 页（含 tasks） | 只做 UI 与交互 |
 | `components/dynamic-form/` | 动态表单组件（按模板 fields 渲染） | 字段契约见 §6 |
-| `utils/store.js` | 27 个业务 action + `getActiveTemplate` / `getEffectiveTemplates` / `inScope` + `listTeamEntries` 自动翻页 | **对外签名冻结** |
+| `utils/store.js` | 35 个业务 action + `getActiveTemplate` / `getEffectiveTemplates` / `inScope` + `listTeamEntries` 自动翻页 | **对外签名冻结** |
 | `utils/http.js` | `wx.request`、Bearer、401 拦截、token 存储（含内存兜底） | 传输层唯一入口 |
 | `utils/session.js` | 登录、上下文 `loadContext()`、退出、401 钩子 | 本地只存 token 与 openid 展示值 |
 | `utils/config.js` | `RELEASE_BASE` / `DEV_BASE` / 超时 | 上线前必改 |
@@ -328,8 +328,8 @@ python -m pytest -q         # 契约与鉴权单测
 ## 11. 上线清单
 
 - [ ] `server/.env` 配齐 DB / `WX_APPID` / `WX_SECRET` / `JWT_SECRET`，`.env` 不入库
-- [ ] `python -m app.init_db` 成功，6 张表与唯一索引齐全
-- [ ] 存量环境执行 `server/sql/migrate_p2_report_tasks.sql`（幂等，仅建 `report_tasks`）
+- [ ] `python -m app.init_db` 成功，11 张表与唯一索引齐全（全新安装）
+- [ ] 存量环境按顺序执行 `server/sql/migrate_p2_report_tasks.sql` → `server/sql/migrate_p3_analysis.sql`（均幂等，脚本末尾自检数字需符合 README 说明）
 - [ ] `utils/config.js` 的 `RELEASE_BASE` / `DEV_BASE` 指向已备案 HTTPS 域名
 - [ ] 微信公众平台配置 **request 合法域名**
 - [ ] Nginx 终止 TLS + gunicorn/systemd 托管，`/health` 可访问
@@ -342,7 +342,7 @@ python -m pytest -q         # 契约与鉴权单测
 
 | 检查项 | 方法 | 期望 |
 |---|---|---|
-| action 对账 | `cd server && python3 -m pytest -q tests/test_contract.py`（即 finish.sh 验证 3 的单测） | 27 个，名称严格一一对应 |
+| action 对账 | `cd server && python3 -m pytest -q tests/test_contract.py`（即 finish.sh 验证 3 的单测） | 35 个，名称严格一一对应 |
 | 云开发残留 | 检索 `wx.cloud` / `cloud-config` / `cloudbaserc` | 活跃 JS 中 0 命中 |
 | 名称一致性 | 检索历史项目名字面（模式见 `server/finish.sh` 验证 5） | 活跃代码中 0 命中 |
 | Python 语法 | `python3 -m compileall -q server/app server/tests` | 全通过 |
@@ -357,8 +357,8 @@ python -m pytest -q         # 契约与鉴权单测
 | 死字段 | 检索 `hasTeam` / `myTeams` / `ignoreScope` | 仅历史注释可命中，代码 0 命中 |
 
 > 当前会话无命令行工具、无本地文件删除能力，也未配置 Python / JS 语言服务（LSP 探测均返回 "No LSP server configured"），因此编译、单测与 `node --check` 必须在**本机终端**执行。
-> `server/finish.sh` 已打包为 6 项一键验证：默认「列清单 → 输入 `yes` → 删除 + 验证」，`--yes` 免确认，`--verify-only` 只验证不删除；任一失败项会汇总为 `FAIL=1` 退出码。
-> 会话内**已实际执行**的静态验证：前端 35 个 action ↔ 后端 35 个 `HANDLERS`、云开发引用 0 命中、旧名称 0 命中（仅脚本检索模式自引用）、死字段 0 命中、`alwaysApply: true` 仅剩已改写的 `CODEBUDDY.md` 与脚本检索模式。
+> `server/finish.sh` 为**纯验证脚本**：一次跑完 6 项静态验证（依赖预检 / compileall / pytest / `node --check` / 残留与名称一致性 / 首次启动配置自检），任一失败项汇总为 `FAIL=1` 退出码；只验证，不修改或删除任何文件，`--verify-only` 为兼容旧用法的等价参数。
+> 会话内**已实际执行**的静态验证：前端 35 个 action ↔ 后端 35 个 `HANDLERS`、云开发引用 0 命中、旧名称 0 命中（仅脚本检索模式自引用）、死字段 0 命中。
 
 ---
 
@@ -372,18 +372,20 @@ python -m pytest -q         # 契约与鉴权单测
 
 ---
 
-## 14. 无效文件与清理
+## 14. 无效文件清理结果
 
-会话环境无删除能力，因此采取「**先内容中和，再由脚本物理删除**」两步。当前所有残留文件均已清空实现、去掉旧名称与 CloudBase 引导，并被 `project.config.json` → `packOptions.ignore` 排除，**不进入小程序包、不会误导后续开发**。
+项目早期由 CloudBase 脚手架生成，这些文件与当前自有服务端架构方向相反。**本轮已物理删除**，`git ls-files` 中不再包含任何云开发路径（`utils/cloud.js`、`utils/cloud-config.js`、`cloudbaserc.json`、`cloudfunctions/**`、`.cloudbase/**`、`rules/`、`codebuddy-plugin/`）。
 
-| 类别 | 路径 | 中和后的状态 | 脚本是否删除 |
-|---|---|---|---|
-| 云开发调用层 | `utils/cloud.js`、`utils/cloud-config.js` | 仅剩「已废弃」注释，无可执行代码、无 `wx.cloud` | 是 |
-| 云环境/云函数 | `cloudbaserc.json`、`cloudfunctions/login/**`、`cloudfunctions/api/**`、`.cloudbase/container/debug.json` | 占位 JSON / 空注释，原 400 余行云函数实现已清空 | 是 |
-| 过时规则目录 | `rules/`、`codebuddy-plugin/` | 3 个 `alwaysApply: true` 自动加载入口已改为 `false` 并写成废弃说明 | 是（整目录） |
-| **保留并改写** | `CODEBUDDY.md` | 已从 CloudBase 规则改写为**自有服务端开发约定**（§0 强制约束），是防止后续开发跑偏的关键入口 | **否，务必保留** |
+| 类别 | 路径 | 处理结果 |
+|---|---|---|
+| 云开发调用层 | `utils/cloud.js`、`utils/cloud-config.js` | 已删除 |
+| 云环境/云函数 | `cloudbaserc.json`、`cloudfunctions/**`、`.cloudbase/container/debug.json` | 已删除 |
+| 过时规则目录 | `rules/`、`codebuddy-plugin/` | 已删除（整目录） |
+| **保留并改写** | `CODEBUDDY.md` | 已从 CloudBase 规则改写为**自有服务端开发约定**（§0 强制约束），是防止后续开发跑偏的关键入口，**务必保留** |
 
-执行 `bash server/finish.sh` 可彻底删除上述「是」的文件与目录，并顺带完成 §12 的 6 项静态验证；清理完成后 `packOptions.ignore` 中对应条目可精简，保留也无害。只验证不删除用 `--verify-only`。
+`project.config.json` → `packOptions.ignore` 仍保留 `server` / `docs` / `README.md` / `CODEBUDDY.md` 等排除项（这些是源码与文档，不属于小程序包内容）。
+
+`bash server/finish.sh` 只做静态验证（含云开发引用 / 旧名称 / 死字段检索），**不再包含任何删除逻辑**。
 
 **其它保留**：`.workbuddy/`（项目数据）、`.wbapp_*.genie` 与 `.wbapp_*.privacy.json`（应用卡/隐私配置）、`project.private.config.json`（开发者工具私有设置）、`sitemap.json`。
 
@@ -403,6 +405,7 @@ python -m pytest -q         # 契约与鉴权单测
 | 2026-11-09 | 处理遗留项：内容中和 8 个云开发残留文件 + 3 个自动加载规则入口；`CODEBUDDY.md` 改写为自有服务端开发约定并移出删除清单；`finish.sh` 重写为三模式 + 6 项验证（action 契约改由 pytest 校验）；新增 §16 真机联调清单 |
 | 2026-11-16 | P2 填报任务：`report_tasks` + 5 个 action + 服务端应提交口径单点实现，看板/报表改调 `getReportTaskStatus` |
 | 2026-11-16 | P3 确定性分析：5 张 `analysis_*` 表 + 6 指标/3 规则单点实现 + 幂等执行与只读护栏 + 8 个 action + 小程序分析页；测试覆盖空分母、缺失不补零、阈值边界、幂等复用与写权限断言 |
+| 2026-11-16 | 部署化与死代码清理：P2/P3 迁移脚本补部署说明、`SET NAMES utf8mb4` 与 `information_schema` 自检（MySQL 8 实测幂等）；`finish.sh` 改为纯验证脚本；删除 `metrics.definition_map()`、精简 `utils/stats.js` 导出、清理 handlers 注释中的云函数引用 |
 
 ---
 
@@ -425,7 +428,7 @@ python -m pytest -q         # 契约与鉴权单测
 | T10 | 并发发版 | 两个管理员同时基于同一版本点「发新版本」 | 版本号顺延不撞唯一键，两者均成功 | P2-6 |
 | T11 | 停用成员 | 管理员停用某成员 → 该成员切到 profile | 明确显示「你已被管理员停用」，退出按钮仍可见可点 | P1 停用出口 |
 | T12 | 登录过期 | 改 `JWT_SECRET` 或等 token 过期后触发任意请求 | 回到登录页，不出现空壳主界面 | P1 401 错误态 |
-| T13 | 清理与验证 | 终端执行 `bash server/finish.sh` | 6 项验证全绿、退出码 `FAIL=0` | 本轮清理 |
+| T13 | 迁移与验证 | 存量库执行 P2 → P3 迁移并核对自检数字；终端执行 `bash server/finish.sh` | 迁移自检数字符合 README 说明；6 项验证全绿、退出码 `FAIL=0` | 本轮清理 |
 
 > T13 的输出建议整段贴回对话，便于按具体报错逐条收尾。
 
