@@ -13,6 +13,26 @@ function sortedFields(fields) {
   })
 }
 
+const NUMERIC_TYPES = ['integer', 'decimal', 'money']
+
+// 把字段元数据转成展示文案：填写说明与数值范围提示。
+// 只在组件内做展示用，不改模板原始定义。
+function displayFields(fields) {
+  return fields.map(function (f) {
+    const out = Object.assign({}, f)
+    if (f.description) out.descText = f.description
+    if (NUMERIC_TYPES.indexOf(f.type) >= 0) {
+      const v = f.validation || {}
+      const hasMin = v.min !== undefined && v.min !== null && v.min !== ''
+      const hasMax = v.max !== undefined && v.max !== null && v.max !== ''
+      if (hasMin && hasMax) out.rangeText = '范围 ' + v.min + ' ~ ' + v.max
+      else if (hasMin) out.rangeText = '不小于 ' + v.min
+      else if (hasMax) out.rangeText = '不大于 ' + v.max
+    }
+    return out
+  })
+}
+
 // 多选字段的选中状态映射：checks[fieldKey][option] = true/false
 function buildChecks(fields, values) {
   const checks = {}
@@ -69,7 +89,7 @@ Component({
     rebuild: function () {
       const tpl = this.properties.template
       if (!tpl || !tpl.fields) return
-      const fields = sortedFields(tpl.fields)
+      const fields = displayFields(sortedFields(tpl.fields))
       const repeatable = tpl.entry_mode === 'repeatable'
       let rows = []
       const incoming = this.properties.value

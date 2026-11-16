@@ -6,6 +6,23 @@ const { validateRow } = require('../../utils/validator')
 // records 页「补录 / 去修改」通过 Storage 传递目标日期（tabBar 页不能带参数跳转）
 const BACKFILL_KEY = 'backfill_date'
 
+// 草稿自动保存：停止输入 3 秒后落库，本地副本 0.8 秒节流（仅作离线兜底）
+const AUTOSAVE_DELAY = 3000
+const LOCAL_DRAFT_DELAY = 800
+
+// 只比较填写内容，忽略 rowId（动态表单重建会重新生成 rowId）
+function rowsSignature(rows) {
+  return JSON.stringify((rows || []).map(function (r) {
+    return r.values || {}
+  }))
+}
+
+function hhmm() {
+  const d = new Date()
+  const p = function (n) { return n < 10 ? '0' + n : '' + n }
+  return p(d.getHours()) + ':' + p(d.getMinutes())
+}
+
 // 日期切换后的展示态集中计算，避免 Hero / 按钮 / 状态文案各算一套
 function buildDateView(date, entryExists, noTemplate) {
   const today = dateUtil.today()
@@ -32,6 +49,7 @@ function buildDateView(date, entryExists, noTemplate) {
     canPrev: date > min,
     canNext: date < today,
     statusText: statusText,
+    statusTone: noTemplate ? 'muted' : (entryExists ? 'ok' : 'pending'),
     submitLabel: entryExists
       ? (isBackfill ? '更新 ' + short + ' 成果' : '更新今日成果')
       : (isBackfill ? '补录 ' + short + ' 成果' : '提交今日成果'),
@@ -67,7 +85,13 @@ Page({
     canPrev: false,
     canNext: false,
     statusText: '',
+    statusTone: '',
     submitLabel: '提交今日成果',
+    autoSaveState: '', // '' | saving | saved | error
+    autoSaveText: '',
+    weekSubmitted: 0,
+    weekMissed: 0,
+    hasWeekStat: false,
     adminLinks: [],
   },
 
@@ -78,8 +102,12 @@ Page({
     // 每次回到首页默认展示今天；有来自记录页的补录请求时切到目标日期
     const pending = this.consumeBackfillDate()
     const date = pending || dateUtil.today()
+    this.clearAutoSaveTimer()
     this.setData(Object.assign(
-      { authState: 'checking', loading: true, errorText: '' },
+      {
+        authState: 'checking', loading: true, errorText: '',
+        autoSaveState: '', autoSaveText: '', hasWeekStat: false,
+      },
       buildDateView(date, false, false)
     ))
     try {
@@ -121,6 +149,15 @@ Page({
     wx.stopPullDownRefresh()
   },
 
+  // 离开页面时取消定时器并把改动立即落到本机，避免节流窗口内丢内容
+  onHide: function () {
+    this.flushLocalDraft()
+  },
+
+  onUnload: function () {
+    this.flushLocalDraft()
+  },
+
   loadPage: async function (ctx) {
     const manager = session.isManager(ctx.member)
     const adminLinks = manager
@@ -142,10 +179,38 @@ Page({
       adminLinks: adminLinks,
     })
     await this.loadForm(ctx)
+    // 概览统计与表单互不阻塞，失败静默（不因统计失败挡住填报）
+    this.loadWeekStat(ctx)
+  },
+
+  // 近 7 天（含今天）已提交 / 未提交天数，作为首页待办概览
+  loadWeekStat: async function (ctx) {
+    try {
+      const list = await store.listMyEntries(ctx.team.team_id, 14)
+      const today = dateUtil.today()
+      const windowStart = dateUtil.addDays(today, -6)
+      const byDate = {}
+      ;(list || []).forEach(function (it) {
+        if (it.status === 'submitted') byDate[it.entry_date] = true
+      })
+      let submitted = 0
+      for (let i = 0; i < 7; i++) {
+        if (byDate[dateUtil.addDays(windowStart, i)]) submitted++
+      }
+      this.setData({
+        hasWeekStat: true,
+        weekSubmitted: submitted,
+        weekMissed: 7 - submitted,
+      })
+    } catch (e) {
+      this.setData({ hasWeekStat: false })
+    }
   },
 
   loadForm: async function (ctx) {
-    this.setData({ loading: true, errorText: '' })
+    this.clearAutoSaveTimer()
+    this._formInited = false
+    this.setData({ loading: true, errorText: '', autoSaveState: '', autoSaveText: '' })
     const date = this.data.entryDate || dateUtil.today()
     try {
       // 模板生效判定始终按「今天」；补录沿用当前生效模板（历史版本发布时已归档）
@@ -171,10 +236,17 @@ Page({
         if (entry && entry.status === 'draft') {
           hintText = '模板已更新，草稿已按新版本重填（内容参考上次填写值）'
         }
-        // 上次填写值记忆（按 fieldKey）
-        const last = this.getLastValues(tpl, ctx)
-        if (last && Object.keys(last).length > 0) {
-          initialValue = [{ rowId: 'last', values: last }]
+        // 本机暂存的未提交内容优先于"上次填写值"，避免断网/闪退后改动丢失
+        const localRows = this.readLocalDraft(date, tpl)
+        if (localRows && localRows.length) {
+          initialValue = localRows
+          hintText = '已恢复本机暂存的未提交内容'
+        } else {
+          // 上次填写值记忆（按 fieldKey）
+          const last = this.getLastValues(tpl, ctx)
+          if (last && Object.keys(last).length > 0) {
+            initialValue = [{ rowId: 'last', values: last }]
+          }
         }
       }
       this.rowsData = null
@@ -243,12 +315,143 @@ Page({
   },
 
   onFormChange: function (e) {
-    this.rowsData = e.detail.rows
+    this.rowsData = e.detail.rows || []
+    const sig = rowsSignature(this.rowsData)
+    // 动态表单重建后的首次 emit 代表「初始值」，不算用户改动
+    if (!this._formInited) {
+      this._formInited = true
+      this._lastSavedSig = sig
+      return
+    }
+    this.writeLocalDraft(this.rowsData)
+    this.scheduleAutoSave(sig)
   },
 
   currentRows: function () {
     const comp = this.selectComponent('#form')
     return comp ? comp.getRows() : this.rowsData || []
+  },
+
+  // ---------- 草稿自动保存 ----------
+  canAutoSave: function () {
+    return !!(
+      this.ctx &&
+      this.data.template &&
+      !this.data.loading &&
+      !this.data.noTemplate &&
+      !this.data.entryExists && // 已提交的记录不自动存草稿，避免把已提交降级为草稿
+      !this.data.submitting
+    )
+  },
+
+  scheduleAutoSave: function (sig) {
+    if (!this.canAutoSave()) return
+    if (sig === this._lastSavedSig) return
+    clearTimeout(this._autoTimer)
+    const that = this
+    this._autoTimer = setTimeout(function () {
+      that.autoSaveDraft()
+    }, AUTOSAVE_DELAY)
+  },
+
+  autoSaveDraft: async function () {
+    const task = this.doAutoSave()
+    this._autoSavingPromise = task
+    try {
+      await task
+    } finally {
+      if (this._autoSavingPromise === task) this._autoSavingPromise = null
+    }
+  },
+
+  doAutoSave: async function () {
+    if (!this.canAutoSave()) return
+    const rows = this.currentRows()
+    const sig = rowsSignature(rows)
+    if (sig === this._lastSavedSig) return
+    const date = this.data.entryDate || dateUtil.today()
+    this.setData({ autoSaveState: 'saving', autoSaveText: '正在保存草稿…' })
+    try {
+      await store.saveEntry({
+        team_id: this.ctx.team.team_id,
+        entry_date: date,
+        template_id: this.data.template.template_id,
+        template_version: this.data.template.version,
+        form_data: rows,
+        status: 'draft',
+        source: this.data.isBackfill ? 'backfill' : 'manual',
+        updated_at: new Date().toISOString(),
+      })
+      this._lastSavedSig = sig
+      // 期间已切换日期时不再更新界面提示（写入本身属于原日期，是正确的）
+      if (this.data.entryDate === date) {
+        this.setData({ autoSaveState: 'saved', autoSaveText: '草稿已自动保存 ' + hhmm() })
+      }
+    } catch (e) {
+      // 自动保存失败不打断填写，改动仍在本机暂存
+      this.setData({ autoSaveState: 'error', autoSaveText: '自动保存失败，改动已暂存在本机' })
+    }
+  },
+
+  clearAutoSaveTimer: function () {
+    clearTimeout(this._autoTimer)
+    clearTimeout(this._localTimer)
+  },
+
+  // ---------- 本机草稿（断网/闪退兜底） ----------
+  localDraftKey: function (date) {
+    return 'autodraft_' + (this.ctx ? this.ctx.team.team_id : '') + '_' + date
+  },
+
+  writeLocalDraft: function (rows) {
+    if (!this.ctx || !this.data.template || this.data.entryExists) return
+    const that = this
+    clearTimeout(this._localTimer)
+    this._localTimer = setTimeout(function () {
+      that.persistLocalDraft(rows)
+    }, LOCAL_DRAFT_DELAY)
+  },
+
+  persistLocalDraft: function (rows) {
+    if (!this.ctx || !this.data.template) return
+    try {
+      wx.setStorageSync(this.localDraftKey(this.data.entryDate), {
+        templateId: this.data.template.template_id,
+        templateVersion: Number(this.data.template.version),
+        rows: rows,
+        savedAt: Date.now(),
+      })
+    } catch (e) {
+      // 存储失败不阻断填写
+    }
+  },
+
+  readLocalDraft: function (date, tpl) {
+    try {
+      const d = wx.getStorageSync(this.localDraftKey(date))
+      if (!d || !d.rows || !d.rows.length) return null
+      // 模板版本不一致时丢弃，避免把旧结构灌进新表单
+      if (d.templateId !== tpl.template_id || Number(d.templateVersion) !== Number(tpl.version)) return null
+      return d.rows
+    } catch (e) {
+      return null
+    }
+  },
+
+  clearLocalDraft: function (date) {
+    try {
+      wx.removeStorageSync(this.localDraftKey(date))
+    } catch (e) {
+      // 忽略
+    }
+  },
+
+  flushLocalDraft: function () {
+    clearTimeout(this._autoTimer)
+    clearTimeout(this._localTimer)
+    if (this.rowsData && this.data.template && !this.data.entryExists && this._formInited) {
+      this.persistLocalDraft(this.rowsData)
+    }
   },
 
   onDraft: function () {
@@ -261,6 +464,15 @@ Page({
 
   save: async function (status) {
     if (!this.ctx || !this.data.template) return
+    this.clearAutoSaveTimer()
+    // 自动保存若仍在飞行，先等它完成，避免 draft 晚于 submitted 落库把状态降级
+    if (this._autoSavingPromise) {
+      try {
+        await this._autoSavingPromise
+      } catch (e) {
+        // 自动保存失败不影响本次提交
+      }
+    }
     // 提交前比对当前生效模板（保障管理端实时调整立即生效）
     try {
       const fresh = await store.getActiveTemplate(this.ctx.team.team_id, this.ctx.member)
@@ -324,12 +536,17 @@ Page({
           backfill: isBackfill,
         })
         wx.showToast({ title: isBackfill ? '已补录 ' + date.slice(5) : '已提交今日成果', icon: 'success' })
+        this.clearLocalDraft(date)
         this.setData({ hintText: '' })
       } else {
+        this._lastSavedSig = rowsSignature(rows)
+        this.clearLocalDraft(date)
         wx.showToast({ title: isBackfill ? '补录草稿已保存' : '草稿已保存', icon: 'success' })
       }
       await this.loadForm(this.ctx)
+      this.loadWeekStat(this.ctx)
     } catch (e) {
+      this.setData({ errorText: e.message || '保存失败，请检查网络后重试' })
       wx.showToast({ title: e.message || '保存失败', icon: 'none' })
     }
     this.setData({ submitting: false })

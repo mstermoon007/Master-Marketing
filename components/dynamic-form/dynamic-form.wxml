@@ -14,6 +14,7 @@
           <text class="df-required" wx:if="{{f.required}}">*</text>
           <text class="df-unit" wx:if="{{f.unit}}">（{{f.unit}}）</text>
         </view>
+        <text class="df-desc" wx:if="{{f.descText}}">{{f.descText}}</text>
 
         <!-- 文本 -->
         <input
@@ -112,6 +113,9 @@
             <text class="df-arrow">›</text>
           </view>
         </picker>
+
+        <!-- 数值范围提示（仅数字字段有 rangeText） -->
+        <text class="df-range" wx:if="{{f.rangeText}}">{{f.rangeText}}</text>
       </view>
     </block>
   </block>

@@ -12,7 +12,16 @@ Page({
     loading: true,
     errorText: '',
     records: [],
+    allRecords: [],
     backfillDays: dateUtil.BACKFILL_DAYS,
+    // 筛选条件
+    statusFilter: 'all', // all | submitted | draft
+    rangeFilter: '30', // 7 | 30 | all
+    templateFilter: 'all',
+    templateOptions: [{ id: 'all', name: '全部模板' }],
+    templateIndex: 0,
+    hasTemplateFilter: false,
+    filteredCount: 0,
   },
 
   onShow: async function () {
@@ -43,6 +52,7 @@ Page({
   loadRecords: async function (ctx) {
     try {
       const entries = await store.listMyEntries(ctx.team.team_id, 60)
+      const nameMap = await this.loadTemplateNames(ctx.team.team_id)
       const records = entries.map(function (en) {
         // 用本地时区解析 created_at，避免 UTC 截断造成假"补录"（P2-1）
         let createdDay = ''
@@ -60,9 +70,19 @@ Page({
           rowCount: (en.form_data || []).length,
           backfill: createdDay && createdDay !== en.entry_date,
           firstValue: firstRowText(en),
+          templateId: en.template_id || '',
+          templateName: nameMap[en.template_id] || '未命名模板',
         }
       })
-      this.setData({ authState: 'ready', needTeam: false, loading: false, records: records, errorText: '' })
+      this.setData({
+        authState: 'ready',
+        needTeam: false,
+        loading: false,
+        allRecords: records,
+        errorText: '',
+      })
+      this.buildTemplateOptions(records)
+      this.applyFilters()
     } catch (e) {
       if (!session.hasSession()) {
         this.setData({ loading: false })
@@ -71,6 +91,75 @@ Page({
       }
       this.setData({ loading: false, errorText: e.message || '加载失败' })
     }
+  },
+
+  // 模板名映射：普通成员也能读 listTemplates，用于历史记录归类
+  loadTemplateNames: async function (teamId) {
+    try {
+      const list = await store.listTemplates(teamId)
+      const map = {}
+      ;(list || []).forEach(function (t) {
+        const prev = map[t.template_id]
+        // 同一模板多版本时优先展示最高版本的名称
+        if (!prev || Number(t.version) > Number(prev.version)) map[t.template_id] = t
+      })
+      const names = {}
+      Object.keys(map).forEach(function (id) {
+        names[id] = map[id].name
+      })
+      return names
+    } catch (e) {
+      return {}
+    }
+  },
+
+  buildTemplateOptions: function (records) {
+    const seen = {}
+    const options = [{ id: 'all', name: '全部模板' }]
+    records.forEach(function (r) {
+      if (!r.templateId || seen[r.templateId]) return
+      seen[r.templateId] = true
+      options.push({ id: r.templateId, name: r.templateName })
+    })
+    this.setData({
+      templateOptions: options,
+      hasTemplateFilter: options.length > 2,
+      templateFilter: 'all',
+      templateIndex: 0,
+    })
+  },
+
+  applyFilters: function () {
+    const { allRecords, statusFilter, rangeFilter, templateFilter } = this.data
+    const today = dateUtil.today()
+    let cutoff = ''
+    if (rangeFilter !== 'all') {
+      cutoff = dateUtil.addDays(today, -(Number(rangeFilter) - 1))
+    }
+    const filtered = allRecords.filter(function (r) {
+      if (statusFilter !== 'all' && r.status !== statusFilter) return false
+      if (templateFilter !== 'all' && r.templateId !== templateFilter) return false
+      if (cutoff && r.date < cutoff) return false
+      return true
+    })
+    this.setData({ records: filtered, filteredCount: filtered.length })
+  },
+
+  onStatusFilter: function (e) {
+    this.setData({ statusFilter: e.currentTarget.dataset.value })
+    this.applyFilters()
+  },
+
+  onRangeFilter: function (e) {
+    this.setData({ rangeFilter: e.currentTarget.dataset.value })
+    this.applyFilters()
+  },
+
+  onTemplateFilter: function (e) {
+    const idx = Number(e.detail.value)
+    const opt = this.data.templateOptions[idx] || { id: 'all' }
+    this.setData({ templateIndex: idx, templateFilter: opt.id })
+    this.applyFilters()
   },
 
   goToday: function () {

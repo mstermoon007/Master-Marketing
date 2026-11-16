@@ -64,6 +64,7 @@ function estatePresetFields() {
         default: null,
         unit: type === 'textarea' ? '' : '组',
         placeholder: '',
+        description: '',
         options: [],
         optionsText: '',
         validation: { min: '', max: '', pattern: '' },
@@ -97,6 +98,7 @@ function emptyField(sort) {
     default: null,
     unit: '',
     placeholder: '',
+    description: '',
     options: [],
     optionsText: '',
     validation: { min: '', max: '', pattern: '' },
@@ -409,6 +411,10 @@ Page({
     this.patchField(Number(e.currentTarget.dataset.idx), { placeholder: e.detail.value })
   },
 
+  onFieldDesc: function (e) {
+    this.patchField(Number(e.currentTarget.dataset.idx), { description: e.detail.value })
+  },
+
   onFieldOptions: function (e) {
     const idx = Number(e.currentTarget.dataset.idx)
     const text = e.detail.value
@@ -475,6 +481,7 @@ Page({
         default: null,
         unit: (f.unit || '').trim(),
         placeholder: (f.placeholder || '').trim(),
+        description: (f.description || '').trim(),
         options: f.type === 'select' || f.type === 'multiselect' ? f.options : [],
         validation: {
           min: f.validation && f.validation.min !== '' ? Number(f.validation.min) : null,

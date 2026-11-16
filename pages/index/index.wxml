@@ -29,10 +29,15 @@
         <view class="date-arrow {{canNext ? '' : 'date-arrow-off'}}" data-delta="1" bindtap="shiftEntryDate">›</view>
         <text class="backfill-tag" wx:if="{{isBackfill}}">补录</text>
       </view>
-      <view class="hero-status">
+      <view class="hero-status hero-status-{{statusTone}}">
         <text class="status-dot {{entryExists ? 'status-dot-ok' : ''}}"></text>
         <text>{{statusText}}</text>
       </view>
+      <view class="hero-week" wx:if="{{hasWeekStat}}">
+        <text>近 7 天已提交 {{weekSubmitted}} 天</text>
+        <text class="hero-week-warn" wx:if="{{weekMissed > 0}}">· {{weekMissed}} 天未提交</text>
+      </view>
+      <view class="backfill-range" wx:if="{{minEntryDate}}">可补录 {{minEntryDate}} 起的日期</view>
     </view>
 
     <!-- 加载中 -->
@@ -63,6 +68,9 @@
           </view>
           <view class="hint-banner" wx:if="{{hintText}}">
             <text class="hint-text">{{hintText}}</text>
+          </view>
+          <view class="autosave-bar autosave-{{autoSaveState}}" wx:if="{{autoSaveText}}">
+            <text>{{autoSaveText}}</text>
           </view>
           <dynamic-form id="form" template="{{template}}" value="{{initialValue}}" bind:change="onFormChange" />
           <view class="submit-area">

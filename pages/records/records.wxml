@@ -10,7 +10,31 @@
 
   <block wx:else>
     <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
-    <view wx:if="{{records.length === 0 && !errorText}}" class="empty">还没有记录，去「今日」提交第一条成果吧</view>
+
+    <!-- 筛选：状态 / 时间范围 / 模板 -->
+    <view class="filter-bar">
+      <view class="filter-row">
+        <view class="pill {{statusFilter === 'all' ? 'pill-on' : ''}}" data-value="all" bindtap="onStatusFilter">全部</view>
+        <view class="pill {{statusFilter === 'submitted' ? 'pill-on' : ''}}" data-value="submitted" bindtap="onStatusFilter">已提交</view>
+        <view class="pill {{statusFilter === 'draft' ? 'pill-on' : ''}}" data-value="draft" bindtap="onStatusFilter">草稿</view>
+      </view>
+      <view class="filter-row">
+        <view class="pill {{rangeFilter === '7' ? 'pill-on' : ''}}" data-value="7" bindtap="onRangeFilter">近 7 天</view>
+        <view class="pill {{rangeFilter === '30' ? 'pill-on' : ''}}" data-value="30" bindtap="onRangeFilter">近 30 天</view>
+        <view class="pill {{rangeFilter === 'all' ? 'pill-on' : ''}}" data-value="all" bindtap="onRangeFilter">全部时间</view>
+      </view>
+      <picker wx:if="{{hasTemplateFilter}}" mode="selector" range="{{templateOptions}}" range-key="name" value="{{templateIndex}}" bindchange="onTemplateFilter">
+        <view class="filter-template">
+          <text>{{templateOptions[templateIndex].name}}</text>
+          <text class="filter-arrow">›</text>
+        </view>
+      </picker>
+      <text class="filter-count">共 {{filteredCount}} 条</text>
+    </view>
+
+    <view wx:if="{{records.length === 0 && !errorText}}" class="empty">
+      {{allRecords.length === 0 ? '还没有记录，去「今日」提交第一条成果吧' : '当前筛选下没有记录，换个条件试试'}}
+    </view>
 
     <view class="backfill-bar">
       <text class="weak">漏填了？可补录近 {{backfillDays}} 天</text>
@@ -24,7 +48,10 @@
         <text class="tag tag-gray" wx:if="{{item.backfill}}">补录</text>
       </view>
       <text class="record-summary" wx:if="{{item.firstValue}}">{{item.firstValue}}</text>
-      <text class="weak">共 {{item.rowCount}} 条成果</text>
+      <view class="record-foot">
+        <text class="weak">共 {{item.rowCount}} 条成果</text>
+        <text class="record-tpl" wx:if="{{hasTemplateFilter}}">{{item.templateName}}</text>
+      </view>
     </view>
   </block>
 </view>

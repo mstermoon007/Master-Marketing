@@ -54,6 +54,21 @@
   margin-left: 8rpx;
 }
 
+.df-desc {
+  display: block;
+  color: var(--text-weak);
+  font-size: 22rpx;
+  line-height: 1.5;
+  margin-bottom: 10rpx;
+}
+
+.df-range {
+  display: block;
+  color: var(--text-weak);
+  font-size: 22rpx;
+  margin-top: 8rpx;
+}
+
 .df-input {
   background: #f4f6fa;
   border-radius: 12rpx;

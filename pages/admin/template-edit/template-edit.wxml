@@ -79,6 +79,10 @@
             <text class="form-label">字段标识 fieldKey（发布后不可改语义）</text>
             <input class="input" value="{{f.fieldKey}}" data-idx="{{fIdx}}" bindinput="onFieldKey" />
           </view>
+          <view class="form-line">
+            <text class="form-label">填写说明（可选，显示给填报人）</text>
+            <input class="input" value="{{f.description}}" placeholder="如：只填正整数，含到访未成交" data-idx="{{fIdx}}" bindinput="onFieldDesc" />
+          </view>
           <view class="form-two">
             <view class="form-line">
               <text class="form-label">类型</text>
