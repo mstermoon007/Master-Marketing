@@ -16,14 +16,17 @@ const TYPE_LABELS = TYPE_OPTIONS.map(function (o) {
   return o.label
 })
 
-const METHOD_OPTIONS = [
+// 字段统计语义：none 不参与分析；sum/count/avg 供统计引擎与分析引擎共用
+const STAT_TYPE_OPTIONS = [
+  { value: 'none', label: '不统计' },
   { value: 'sum', label: '求和' },
-  { value: 'avg', label: '平均' },
   { value: 'count', label: '计数' },
+  { value: 'avg', label: '平均' },
 ]
-const METHOD_LABELS = METHOD_OPTIONS.map(function (o) {
+const STAT_TYPE_LABELS = STAT_TYPE_OPTIONS.map(function (o) {
   return o.label
 })
+const STAT_TYPE_TEXT = { none: '不统计', sum: '求和', count: '计数', avg: '平均' }
 
 const SCOPE_OPTIONS = [
   { value: 'all', label: '全员' },
@@ -41,11 +44,15 @@ function typeLabel(v) {
   return v
 }
 
-function methodLabel(v) {
-  for (let i = 0; i < METHOD_OPTIONS.length; i++) {
-    if (METHOD_OPTIONS[i].value === v) return METHOD_OPTIONS[i].label
+// 兼容历史模板：只有 aggregate、没有 statType 时按 aggregate 反推
+function normalizeStatType(statType, aggregate) {
+  if (statType && STAT_TYPE_TEXT[statType]) return statType
+  if (aggregate && aggregate.enabled) {
+    if (aggregate.method === 'avg') return 'avg'
+    if (aggregate.method === 'count') return 'count'
+    return 'sum'
   }
-  return v
+  return 'none'
 }
 
 function genFieldKey() {
@@ -65,6 +72,8 @@ function estatePresetFields() {
         unit: type === 'textarea' ? '' : '组',
         placeholder: '',
         description: '',
+        analysisCategory: '',
+        statType: type === 'textarea' ? 'none' : 'sum',
         options: [],
         optionsText: '',
         validation: { min: '', max: '', pattern: '' },
@@ -99,6 +108,8 @@ function emptyField(sort) {
     unit: '',
     placeholder: '',
     description: '',
+    analysisCategory: '',
+    statType: 'none',
     options: [],
     optionsText: '',
     validation: { min: '', max: '', pattern: '' },
@@ -109,11 +120,18 @@ function emptyField(sort) {
 
 function decorateField(f) {
   const out = Object.assign({}, f)
+  const statType = normalizeStatType(f.statType, f.aggregate)
   out.typeLabel = typeLabel(f.type)
-  out.methodLabel = methodLabel(f.aggregate && f.aggregate.method)
+  out.statType = statType
+  out.statTypeLabel = STAT_TYPE_TEXT[statType]
+  out.analysisCategory = f.analysisCategory || ''
   out.optionsText = (f.options || []).join('，')
   out.validation = f.validation || {}
-  out.aggregate = f.aggregate || { enabled: false, method: 'sum', dimension: 'member' }
+  out.aggregate = {
+    enabled: statType !== 'none',
+    method: statType === 'none' ? 'sum' : statType,
+    dimension: 'member',
+  }
   return out
 }
 
@@ -133,7 +151,7 @@ Page({
     fields: [],
     expandedIndex: -1,
     typeOptions: TYPE_LABELS,
-    methodOptions: METHOD_LABELS,
+    statTypeOptions: STAT_TYPE_LABELS,
     scopeOptions: SCOPE_LABELS,
     scopeType: 'all',
     scopeTypeLabel: '全员',
@@ -437,17 +455,16 @@ Page({
     this.patchField(Number(e.currentTarget.dataset.idx), { 'validation.max': e.detail.value })
   },
 
-  onFieldAgg: function (e) {
+  onFieldStatType: function (e) {
     const idx = Number(e.currentTarget.dataset.idx)
-    const agg = Object.assign({}, this.data.fields[idx].aggregate, { enabled: e.detail.value })
-    this.patchField(idx, { aggregate: agg })
+    const opt = STAT_TYPE_OPTIONS[Number(e.detail.value)]
+    this.patchField(idx, { statType: opt.value, statTypeLabel: opt.label })
   },
 
-  onFieldMethod: function (e) {
-    const idx = Number(e.currentTarget.dataset.idx)
-    const opt = METHOD_OPTIONS[Number(e.detail.value)]
-    const agg = Object.assign({}, this.data.fields[idx].aggregate, { method: opt.value })
-    this.patchField(idx, { aggregate: agg, methodLabel: opt.label })
+  onFieldCategory: function (e) {
+    this.patchField(Number(e.currentTarget.dataset.idx), {
+      analysisCategory: e.detail.value,
+    })
   },
 
   // ---------- 保存 ----------
@@ -473,6 +490,7 @@ Page({
       return
     }
     const rawFields = this.data.fields.map(function (f, i) {
+      const statType = normalizeStatType(f.statType, f.aggregate)
       return {
         fieldKey: (f.fieldKey || '').trim() || genFieldKey(),
         label: (f.label || '').trim(),
@@ -482,14 +500,17 @@ Page({
         unit: (f.unit || '').trim(),
         placeholder: (f.placeholder || '').trim(),
         description: (f.description || '').trim(),
+        analysisCategory: (f.analysisCategory || '').trim(),
+        statType: statType,
         options: f.type === 'select' || f.type === 'multiselect' ? f.options : [],
         validation: {
           min: f.validation && f.validation.min !== '' ? Number(f.validation.min) : null,
           max: f.validation && f.validation.max !== '' ? Number(f.validation.max) : null,
         },
+        // aggregate 保留给现有报表引擎；与 statType 始终同源，避免两套口径
         aggregate: {
-          enabled: !!(f.aggregate && f.aggregate.enabled),
-          method: (f.aggregate && f.aggregate.method) || 'sum',
+          enabled: statType !== 'none',
+          method: statType === 'none' ? 'sum' : statType,
           dimension: 'member',
         },
         sort: i + 1,

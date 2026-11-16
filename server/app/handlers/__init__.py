@@ -1,14 +1,14 @@
 """action -> handler 注册表。
 
 与旧云函数 cloudfunctions/api/index.js 的 handlers 表对应，
-共 22 个在用业务 action（零调用的 listEntriesByUser 审阅后未迁移）；
-另有 /auth/login 登录端点。
+历史 22 个业务 action（零调用的 listEntriesByUser 审阅后未迁移），
+P2 新增 5 个填报任务 action，共 27 个；另有 /auth/login 登录端点。
 """
-from . import audit, entries, members, teams, templates
+from . import audit, entries, members, tasks, teams, templates
 from .common import BusinessError
 
 HANDLERS = {}
-for _module in (teams, members, templates, entries, audit):
+for _module in (teams, members, templates, entries, audit, tasks):
     HANDLERS.update(_module.HANDLERS)
 
 

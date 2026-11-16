@@ -309,7 +309,7 @@ UNIQUE KEY `uk_analysis_idem` (
 | `workspaces` | P4 | 工作空间（租户边界） | `workspace_id` 唯一 |
 | `departments` | P4 | 部门层级（≤3 级） | `(workspace_id, parent_id)`，`depth` ≤ 3 |
 | **`workspace_members`** | P4 | 用户与工作空间的归属关系 | `(workspace_id, user_id)` 唯一；一人可属多空间 |
-| `report_tasks` | P2 | 填报任务（替代单纯模板下发） | `(workspace_id, task_key)` 唯一 |
+| `report_tasks` | P2 | 填报任务（替代单纯模板下发） | P2 先建 `(team_id, task_key)` 唯一；P4 引入工作空间后补 `workspace_id` 并迁移 |
 | `entry_revisions` | P2 | 日报修改历史（可选，用于"查看修改记录"） | `(team_id, user_id, entry_date, revision)` |
 | `analysis_metrics` | P3 | 指标注册表 | `metric_code` + `version` 唯一 |
 | `analysis_rules` | P3 | 规则定义 | `rule_code` + `version` 唯一 |

@@ -39,49 +39,27 @@ Page({
   loadDashboard: async function (ctx) {
     try {
       const today = dateUtil.today()
-      // 多模板分别下发时，应提交名单 = 命中任意一个已生效模板范围的成员（P2-3）
-      const templates = await store.getEffectiveTemplates(ctx.team.team_id)
-      const members = await store.listMembers(ctx.team.team_id)
-      const active = members.filter(function (m) {
-        return m.status === 'active' && store.inAnyScope(templates, m)
+      // 应提交口径由服务端统一计算（任务优先，无任务回退模板范围）
+      const status = await store.getReportTaskStatus({
+        teamId: ctx.team.team_id,
+        date: today,
       })
-      const targets = active
-      const entries = await store.listTeamEntries(ctx.team.team_id, today, today)
-      const byUser = {}
-      entries.forEach(function (en) {
-        byUser[en.user_id] = en
-      })
-      const missing = []
-      let submitted = 0
-      let drafts = 0
-      targets.forEach(function (m) {
-        const en = byUser[m.user_id]
-        if (en && en.status === 'submitted') {
-          submitted += 1
-        } else {
-          if (en && en.status === 'draft') drafts += 1
-          missing.push({
-            userId: m.user_id,
-            name: m.name,
-            role: m.role,
-            draft: !!(en && en.status === 'draft'),
-          })
-        }
-      })
-      const should = targets.length
-      const rate = should > 0 ? Math.round((submitted / should) * 100) : 0
+      const expected = status.expected || []
+      const draftCount = expected.filter(function (m) {
+        return m.draft
+      }).length
       this.setData({
         loading: false,
         denied: false,
         todayText: today,
-        shouldCount: should,
-        submittedCount: submitted,
-        draftCount: drafts,
-        rateText: rate + '%',
-        ratePercent: rate,
-        missing: missing,
-        hasTemplate: templates.length > 0,
-        templateName: templates.map(function (t) { return t.name }).join('、'),
+        shouldCount: status.expectedCount || 0,
+        submittedCount: status.submittedCount || 0,
+        draftCount: draftCount,
+        rateText: status.rateText || '0%',
+        ratePercent: status.rate || 0,
+        missing: status.missing || [],
+        hasTemplate: !!status.hasTemplate,
+        templateName: status.task ? status.task.title : (status.templateName || ''),
       })
     } catch (e) {
       this.setData({ loading: false, errorText: e.message || '加载失败' })

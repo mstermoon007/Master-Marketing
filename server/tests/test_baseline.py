@@ -280,7 +280,8 @@ def test_save_entry_requires_team_and_date(monkeypatch):
 
 # ---------------------------------------------------------------- 库结构快照
 
-EXPECTED_TABLES = ("teams", "members", "form_templates", "daily_entries", "audit_logs")
+EXPECTED_TABLES = ("teams", "members", "form_templates", "daily_entries",
+                   "report_tasks", "audit_logs")
 
 EXPECTED_COLUMNS = {
     "teams": ["id", "team_id", "name", "owner_uid", "config", "created_at"],
@@ -291,6 +292,10 @@ EXPECTED_COLUMNS = {
     "daily_entries": ["id", "team_id", "user_id", "entry_date", "template_id",
                       "template_version", "form_data", "status", "source",
                       "created_at", "updated_at"],
+    "report_tasks": ["id", "team_id", "task_key", "title", "template_id",
+                     "template_version", "scope", "start_date", "end_date",
+                     "due_time", "workdays_only", "status", "created_by",
+                     "created_at", "closed_at"],
     "audit_logs": ["id", "team_id", "actor", "action", "target_type",
                    "target_id", "detail", "created_at"],
 }
@@ -305,6 +310,8 @@ EXPECTED_KEYS = (
     "idx_tpl_team_status",
     "idx_entry_team_date",
     "idx_entry_team_user_date",
+    "uk_task_team_key",
+    "idx_task_team_status",
     "idx_audit_team_time",
 )
 

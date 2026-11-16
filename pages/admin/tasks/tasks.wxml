@@ -1,0 +1,120 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{denied}}" class="center-page">
+    <view class="login-title">无权限</view>
+    <text class="sub">仅管理员 / 负责人可管理填报任务</text>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{errorText}}" class="card"><text class="sub">{{errorText}}</text></view>
+
+    <view class="card">
+      <view class="head-line">
+        <view class="card-title">填报任务</view>
+        <text class="tag tag-brand" bindtap="toggleCreate">{{showCreate ? '收起' : '新建任务'}}</text>
+      </view>
+      <text class="weak">任务决定「谁、哪天、什么时候前填」；模板决定「填什么」。</text>
+    </view>
+
+    <view class="card" wx:if="{{showCreate}}">
+      <view class="card-title">新建任务</view>
+      <view class="form-row">
+        <text class="form-label">任务名称</text>
+        <input class="input" value="{{title}}" placeholder="如：11 月内容日报" bindinput="onTitle" />
+      </view>
+      <view class="form-row">
+        <text class="form-label">填报模板</text>
+        <picker wx:if="{{templateNames.length}}" mode="selector" range="{{templateNames}}" value="{{templateIndex}}" bindchange="onTemplateChange">
+          <view class="input picker-input"><text>{{templateNames[templateIndex]}}</text><text class="arrow">›</text></view>
+        </picker>
+        <text wx:else class="weak">没有已发布模板，请先到模板管理发布</text>
+      </view>
+      <view class="form-row">
+        <text class="form-label">下发范围</text>
+        <text class="weak">{{templateScopeText}}（沿用模板当前配置）</text>
+      </view>
+      <view class="form-two">
+        <view class="form-row">
+          <text class="form-label">开始日期</text>
+          <picker mode="date" value="{{startDate}}" bindchange="onStartDate">
+            <view class="input picker-input">{{startDate}}</view>
+          </picker>
+        </view>
+        <view class="form-row">
+          <text class="form-label">结束日期</text>
+          <picker mode="date" value="{{endDate}}" bindchange="onEndDate">
+            <view class="input picker-input">{{endDate || '长期'}}</view>
+          </picker>
+          <text wx:if="{{endDate}}" class="link" bindtap="clearEndDate">清除</text>
+        </view>
+      </view>
+      <view class="form-two">
+        <view class="form-row">
+          <text class="form-label">截止时间</text>
+          <picker mode="time" value="{{dueTime}}" bindchange="onDueTime">
+            <view class="input picker-input">{{dueTime || '不限制'}}</view>
+          </picker>
+          <text wx:if="{{dueTime}}" class="link" bindtap="clearDueTime">清除</text>
+        </view>
+        <view class="form-row">
+          <text class="form-label">仅工作日</text>
+          <switch checked="{{workdaysOnly}}" bindchange="onWorkdays" color="#4a7cf7" />
+        </view>
+      </view>
+      <button class="btn-primary" loading="{{creating}}" disabled="{{creating}}" bindtap="onCreate">创建任务</button>
+    </view>
+
+    <view class="card" wx:if="{{tasks.length === 0}}">
+      <view class="empty">还没有任务。未创建任务时，按已生效模板范围统计应提交。</view>
+    </view>
+
+    <view class="card" wx:for="{{tasks}}" wx:key="id">
+      <view class="head-line">
+        <view class="card-title task-title">{{item.title}}</view>
+        <text class="tag {{item.status === 'closed' ? 'tag-gray' : 'tag-ok'}}">{{item.statusText}}</text>
+      </view>
+      <view class="meta">
+        <text class="weak">模板：{{item.templateName}} · v{{item.template_version}}</text>
+        <text class="weak">日期：{{item.dateText}}{{item.dueText ? ' · 截止 ' + item.dueText : ''}}</text>
+        <text class="weak">范围：{{item.scopeText}}</text>
+      </view>
+      <view class="ops">
+        <text class="tag tag-brand" data-id="{{item.id}}" bindtap="toggleProgress">{{expandedId === item.id ? '收起进度' : '今日进度'}}</text>
+        <text wx:if="{{item.status === 'active'}}" class="tag tag-gray" data-id="{{item.id}}" data-title="{{item.title}}" bindtap="onClose">关闭任务</text>
+      </view>
+
+      <view wx:if="{{expandedId === item.id && item.progress}}" class="progress">
+        <view wx:if="{{!item.progress.applicable}}" class="weak">该任务不覆盖今天（{{todayText}}）</view>
+        <block wx:else>
+          <view class="stat-row">
+            <view class="stat-box">
+              <text class="stat-num">{{item.progress.expectedCount}}</text>
+              <text class="stat-label">应提交</text>
+            </view>
+            <view class="stat-box">
+              <text class="stat-num stat-ok">{{item.progress.submittedCount}}</text>
+              <text class="stat-label">已提交</text>
+            </view>
+            <view class="stat-box">
+              <text class="stat-num stat-warn">{{item.progress.missingCount}}</text>
+              <text class="stat-label">未提交</text>
+            </view>
+            <view class="stat-box">
+              <text class="stat-num stat-brand">{{item.progress.rateText}}</text>
+              <text class="stat-label">提交率</text>
+            </view>
+          </view>
+          <view class="rate-bar">
+            <view class="rate-fill" style="width: {{item.progress.rate}}%"></view>
+          </view>
+          <view class="progress-title">未提交名单（{{item.progress.missing.length}}）</view>
+          <view wx:if="{{item.progress.missing.length === 0}}" class="weak">今日已全部提交</view>
+          <view class="miss-item" wx:for="{{item.progress.missing}}" wx:for-item="m" wx:key="userId">
+            <text class="miss-name">{{m.name}}</text>
+            <text class="tag {{m.status === 'late' ? 'tag-warn' : 'tag-gray'}}">{{m.statusText}}</text>
+          </view>
+        </block>
+      </view>
+    </view>
+  </block>
+</view>

@@ -163,6 +163,7 @@ Page({
     const adminLinks = manager
       ? [
           { key: 'dashboard', title: '今日看板', desc: '提交率 / 未提交名单 / 一键催填' },
+          { key: 'tasks', title: '填报任务', desc: '按周期下发任务 / 查看完成进度' },
           { key: 'templates', title: '模板管理', desc: '创建 / 预览 / 发布下发模板' },
           { key: 'reports', title: '报表中心', desc: '日 / 周 / 月 / 年统计' },
           { key: 'members', title: '成员管理', desc: '角色 / 启停 / 邀请码' },
@@ -572,6 +573,7 @@ Page({
     const key = e.currentTarget.dataset.key
     const urls = {
       dashboard: '/pages/admin/dashboard/dashboard',
+      tasks: '/pages/admin/tasks/tasks',
       templates: '/pages/admin/templates/templates',
       reports: '/pages/admin/reports/reports',
       members: '/pages/admin/members/members',

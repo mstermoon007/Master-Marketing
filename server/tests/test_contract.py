@@ -20,14 +20,24 @@ LEGACY_ACTIONS = {
     "getMyEntry", "saveEntry", "listMyEntries", "listTeamEntries", "log",
 }
 
+# P2 新增的 5 个填报任务 action
+P2_ACTIONS = {
+    "createReportTask", "listReportTasks", "getReportTask",
+    "getReportTaskStatus", "closeReportTask",
+}
+
 # listEntriesByUser 在旧云函数中零调用，审阅确认为死分支，本次清理未迁移
 REMOVED_DEAD_ACTIONS = {"listEntriesByUser"}
 
 
 def test_all_legacy_actions_migrated():
-    assert set(HANDLERS) == LEGACY_ACTIONS
-    assert len(HANDLERS) == 22
+    assert LEGACY_ACTIONS <= set(HANDLERS)
     assert not (REMOVED_DEAD_ACTIONS & set(HANDLERS))
+
+
+def test_p2_actions_registered():
+    assert set(HANDLERS) == LEGACY_ACTIONS | P2_ACTIONS
+    assert len(HANDLERS) == 27
 
 
 def test_unknown_action_raises_business_error():
@@ -74,16 +84,18 @@ def test_string_ids_match_legacy_oid_shape():
 def test_json_column_mapping_covers_all_tables():
     assert set(db.JSON_COLUMNS) == {
         "teams", "members", "form_templates", "daily_entries", "audit_logs",
+        "report_tasks",
     }
     assert "form_data" in db.JSON_COLUMNS["daily_entries"]
     assert "fields" in db.JSON_COLUMNS["form_templates"]
+    assert db.JSON_COLUMNS["report_tasks"] == ["scope"]
 
 
 def test_schema_has_required_unique_keys():
     sql = (Path(__file__).resolve().parent.parent / "sql" / "schema.sql").read_text("utf-8")
     for key in (
         "uk_teams_team_id", "uk_members_team_user",
-        "uk_tpl_team_id_ver", "uk_entry_team_user_date",
+        "uk_tpl_team_id_ver", "uk_entry_team_user_date", "uk_task_team_key",
     ):
         assert key in sql
 

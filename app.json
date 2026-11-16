@@ -5,6 +5,7 @@
     "pages/profile/profile",
     "pages/team/team",
     "pages/admin/dashboard/dashboard",
+    "pages/admin/tasks/tasks",
     "pages/admin/templates/templates",
     "pages/admin/template-edit/template-edit",
     "pages/admin/template-preview/template-preview",

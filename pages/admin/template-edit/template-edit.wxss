@@ -28,11 +28,6 @@
   align-items: center;
 }
 
-.picker-small {
-  padding: 10rpx 20rpx;
-  display: inline-flex;
-}
-
 .arrow {
   color: var(--text-weak);
 }
@@ -86,22 +81,6 @@
 .field-expand {
   color: var(--brand);
   font-size: 24rpx;
-}
-
-.agg-line {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.agg-line .form-label {
-  margin-bottom: 0;
-}
-
-.agg-right {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
 }
 
 .field-ops {

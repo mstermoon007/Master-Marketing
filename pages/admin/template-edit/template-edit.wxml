@@ -65,7 +65,7 @@
           <text class="field-sort">{{fIdx + 1}}. {{f.label || '未命名字段'}}</text>
           <view class="field-head-right">
             <text class="tag tag-gray">{{f.typeLabel}}</text>
-            <text class="tag tag-brand" wx:if="{{f.aggregate.enabled}}">统计·{{f.methodLabel}}</text>
+            <text class="tag tag-brand" wx:if="{{f.statType !== 'none'}}">统计·{{f.statTypeLabel}}</text>
             <text class="field-expand">{{expandedIndex === fIdx ? '收起' : '展开'}}</text>
           </view>
         </view>
@@ -115,18 +115,19 @@
               <input class="input" value="{{f.unit}}" placeholder="如：元" data-idx="{{fIdx}}" bindinput="onFieldUnit" />
             </view>
             <view class="form-line">
-              <text class="form-label">占位提示（可选）</text>
-              <input class="input" value="{{f.placeholder}}" data-idx="{{fIdx}}" bindinput="onFieldPlaceholder" />
+              <text class="form-label">分析分类（可选）</text>
+              <input class="input" value="{{f.analysisCategory}}" placeholder="如：获客 / 成交" data-idx="{{fIdx}}" bindinput="onFieldCategory" />
             </view>
           </view>
-          <view class="form-line agg-line">
-            <text class="form-label">参与统计（聚合方式）</text>
-            <view class="agg-right">
-              <picker wx:if="{{f.aggregate.enabled}}" mode="selector" range="{{methodOptions}}" data-idx="{{fIdx}}" bindchange="onFieldMethod">
-                <view class="picker-box picker-small"><text>{{f.methodLabel}}</text></view>
-              </picker>
-              <switch checked="{{f.aggregate.enabled}}" data-idx="{{fIdx}}" bindchange="onFieldAgg" color="#4a7cf7" />
-            </view>
+          <view class="form-line">
+            <text class="form-label">统计方式（分析口径）</text>
+            <picker mode="selector" range="{{statTypeOptions}}" data-idx="{{fIdx}}" bindchange="onFieldStatType">
+              <view class="picker-box"><text>{{f.statTypeLabel}}</text><text class="arrow">›</text></view>
+            </picker>
+          </view>
+          <view class="form-line">
+            <text class="form-label">占位提示（可选）</text>
+            <input class="input" value="{{f.placeholder}}" data-idx="{{fIdx}}" bindinput="onFieldPlaceholder" />
           </view>
           <view class="field-ops">
             <text class="act" data-idx="{{fIdx}}" data-dir="up" catchtap="moveField">上移</text>

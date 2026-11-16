@@ -114,13 +114,29 @@ function inScope(scope, member) {
   return true
 }
 
-// 管理端「应提交」口径：命中任意一个已生效模板的范围即应提交。
-// 无生效模板时沿用旧行为（全员计入口径），页面用 hasTemplate 单独提示。
-function inAnyScope(templates, member) {
-  if (!templates || templates.length === 0) return true
-  return templates.some(function (t) {
-    return inScope(t.scope, member)
-  })
+// 应提交口径只在服务端实现（services/expected.py）：
+// 看板/报表统一调用 getReportTaskStatus，客户端不再自行按模板范围统计。
+
+// ---------- 填报任务 ----------
+async function createReportTask(payload) {
+  return callApi('createReportTask', { payload: payload })
+}
+
+async function listReportTasks(teamId, status) {
+  return callApi('listReportTasks', { teamId: teamId, status: status || '' })
+}
+
+async function getReportTask(id) {
+  return callApi('getReportTask', { id: id })
+}
+
+// 应提交口径唯一入口：单日传 date，区间传 from/to；taskId 可选
+async function getReportTaskStatus(params) {
+  return callApi('getReportTaskStatus', params || {})
+}
+
+async function closeReportTask(id) {
+  return callApi('closeReportTask', { id: id })
 }
 
 // ---------- 录入 ----------
@@ -195,7 +211,11 @@ module.exports = {
   getActiveTemplate,
   getEffectiveTemplates,
   inScope,
-  inAnyScope,
+  createReportTask,
+  listReportTasks,
+  getReportTask,
+  getReportTaskStatus,
+  closeReportTask,
   getMyEntry,
   saveEntry,
   listMyEntries,

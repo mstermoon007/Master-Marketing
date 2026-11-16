@@ -58,9 +58,9 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | 路径 | 职责 | 改动约束 |
 |---|---|---|
 | `app.js` / `app.json` / `app.wxss` | 全局入口、页面注册、全局导航标题、主题变量 | 新增页面须注册 `app.json` |
-| `pages/` | 10 个页面：index / records / profile / team + admin 下 6 页 | 只做 UI 与交互 |
+| `pages/` | 11 个页面：index / records / profile / team + admin 下 7 页（含 tasks） | 只做 UI 与交互 |
 | `components/dynamic-form/` | 动态表单组件（按模板 fields 渲染） | 字段契约见 §6 |
-| `utils/store.js` | 22 个业务 action + `getActiveTemplate` / `getEffectiveTemplates` / `inScope` / `inAnyScope` + `listTeamEntries` 自动翻页 | **对外签名冻结** |
+| `utils/store.js` | 27 个业务 action + `getActiveTemplate` / `getEffectiveTemplates` / `inScope` + `listTeamEntries` 自动翻页 | **对外签名冻结** |
 | `utils/http.js` | `wx.request`、Bearer、401 拦截、token 存储（含内存兜底） | 传输层唯一入口 |
 | `utils/session.js` | 登录、上下文 `loadContext()`、退出、401 钩子 | 本地只存 token 与 openid 展示值 |
 | `utils/config.js` | `RELEASE_BASE` / `DEV_BASE` / 超时 | 上线前必改 |
@@ -75,9 +75,10 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | `app/auth.py` | `code2session`、JWT 签发/验签、`extract_uid` |
 | `app/config.py` | 环境变量集中读取 + 启动时密钥校验 |
 | `app/db.py` | 连接、24 位 hex 主键、JSON 列序列化、标识符白名单 |
-| `app/handlers/` | `common.py` + 5 个业务模块 + `__init__.py` 注册表（22 个 action） |
+| `app/handlers/` | `common.py` + 6 个业务模块 + `__init__.py` 注册表（27 个 action） |
+| `app/services/expected.py` | 应提交口径唯一实现（任务优先，无任务回退模板范围） |
 | `app/init_db.py` | 按 `sql/schema.sql` 幂等建表 |
-| `sql/schema.sql` | 5 张表 DDL + 唯一索引 |
+| `sql/schema.sql` | 6 张表 DDL + 唯一索引；增量迁移见 `sql/migrate_p2_report_tasks.sql` |
 | `tests/test_contract.py` | action 对账、JWT、标识符校验等单测 |
 | `.env.example` | 环境变量模板（**真实 `.env` 不入库**） |
 
@@ -95,7 +96,7 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 
 **错误语义**：`401` = 登录过期（前端 `http.js` 清 token → `session.signOut()` → 页面回到登录态）；业务错误用 HTTP 200 + `ok:false` + `message`；服务异常用 HTTP 500 + 通用文案，不回传堆栈。
 
-### 4.2 22 个业务 action
+### 4.2 27 个业务 action
 
 权限列说明：**登录** = 只需有效 JWT；**成员** = `require_member`；**管理员** = `require_manager`（owner/manager）；**本人** = 按 JWT 身份过滤本人数据。
 
@@ -122,12 +123,17 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | 录入 | `saveEntry` | `store.saveEntry(payload)` | 幂等 upsert（唯一键见 §6）；`entry_date` 服务端校验 31 天补录窗口 | 成员 |
 | 录入 | `listMyEntries` | `store.listMyEntries(teamId, limit)` | 我的历史录入 | 本人 |
 | 录入 | `listTeamEntries` | `store.listTeamEntries(teamId, from, to)` | 团队区间录入；服务端 `page`/`pageSize` 分页，`store.js` 自动翻页拉全 | 管理员 |
+| 任务 | `createReportTask` | `store.createReportTask(payload)` | 基于已发布模板创建任务，快照 scope/version | 管理员 |
+| 任务 | `listReportTasks` | `store.listReportTasks(teamId, status)` | 任务列表（可按 active/closed 过滤） | 管理员 |
+| 任务 | `getReportTask` | `store.getReportTask(id)` | 任务详情 | 管理员 |
+| 任务 | `getReportTaskStatus` | `store.getReportTaskStatus({teamId, taskId?, date?, from?, to?})` | 应提交口径 + 任务状态机 + 未提交名单；单日/区间通用 | 管理员 |
+| 任务 | `closeReportTask` | `store.closeReportTask(id)` | 关闭任务（幂等） | 管理员 |
 | 审计 | `log` | `store.logAction(teamId, action, ...)` | 上报审计，失败不阻断主流程 | 成员 |
 
 > **纯前端判定**（不产生独立网络请求，不在 `HANDLERS` 注册表中）：
 > `getEffectiveTemplates()` 取全部已生效的 published 模板（按生效日 → 版本降序）；
 > `getActiveTemplate()` 从中取第一个命中成员 `inScope` 的（成员端一天一条记录）；
-> `inAnyScope()` 供管理端算「应提交名单」——命中任意一个已生效模板即算，避免多模板分别下发时漏人。
+> 管理端「应提交名单」不再由客户端计算，统一调用服务端 `getReportTaskStatus`。
 > `listTeamEntries` 虽是一个 action，但 `store.js` 会按 1000 条/页循环调用直到拉全（上限 50 页，超限抛错）。
 > 已删除的 `listEntriesByUser` 前端零调用，后端亦未迁移；新增 action 必须前后端成对注册并更新 `tests/test_contract.py` 的期望集合。
 
@@ -159,14 +165,24 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | `members` | `team_id`、`user_id`(openid)、`name`、`role`(owner/manager/member)、`status` | `uk_members_team_user(team_id,user_id)` 唯一 |
 | `form_templates` | `template_id`、`version`、`fields` JSON、`scope` JSON、`effective_from`、`status`(draft/published/archived) | `uk_tpl_team_id_ver(team_id,template_id,version)` 唯一 |
 | `daily_entries` | `team_id`、`user_id`、`entry_date`、`form_data` JSON、`status`(draft/submitted)、`template_version` | `uk_entry_team_user_date` 唯一（**saveEntry 幂等**） |
+| `report_tasks` | `team_id`、`task_key`、`title`、`template_id`/`template_version`、`scope` JSON、`start_date`/`end_date`、`due_time`、`workdays_only`、`status`(active/closed) | `uk_task_team_key(team_id,task_key)` 唯一；`idx_task_team_status` |
 | `audit_logs` | `actor`、`action`、`target_type`、`target_id`、`detail` JSON | `idx_audit_team_time` |
 
 **字段/时间契约（回归关键）**
 
 - 时间统一 ISO8601 UTC 字符串（`2026-11-09T09:08:02.000Z`），与旧云函数 `new Date().toISOString()` 一致，保障 `records.js` 的「补录」判定。
 - `entry_date` / `effective_from` 为 `YYYY-MM-DD` 字符串，字典序即区间序。
-- JSON 列（`config` / `fields` / `scope` / `form_data` / `detail`）由 `db.py` 自动序列化，读取时自动反序列化。
+- JSON 列（`config` / `fields` / `scope` / `form_data` / `detail`）由 `db.py` 自动序列化，读取时自动反序列化；新增 JSON 列必须同步 `db.JSON_COLUMNS`。
+- 字段新增 `statType`(none/sum/count/avg)、`unit`、`analysisCategory`；`aggregate` 由 `statType` 派生，二者不得出现不一致。
 - 写入字段走白名单：客户端不能改写 `id`、`team_id`、`template_id`、`version`、`user_id`、`created_by` 等归属字段。
+
+**填报任务与应提交口径（P2）**
+
+- 模板回答「填什么」；任务回答「谁、哪天、什么时候前填」。
+- 当日有覆盖该日期的 `active` 任务时：应提交 = 任务 `scope` 并集；`workdays_only=1` 的任务在周末不产生应提交人（不回退模板口径）。
+- 当日没有任务时：回退到「所有已生效模板 `scope` 并集」；两种情况都只统计 `status='active'` 成员。
+- 成员状态：`pending` 待提交 / `submitted` 已提交 / `late` 已逾期 / `backfilled` 已补录 / `closed` 已关闭；补录按提交时间换算东八区日期后与 `entry_date` 比较。
+- 唯一实现：`server/app/services/expected.py` 的 `compute_expected_submitters`，handler 与小程序端不得另写一套统计口径。
 
 ---
 
@@ -207,7 +223,7 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | R9 | 停用成员 | `getMyMember` 对 `status != active` 直接报「已被停用」，前端保留登录态以显示退出入口 |
 | R10 | **补录窗口** | 前端 `date.js BACKFILL_DAYS=31` 与服务端 `entries.py BACKFILL_DAYS=31` 必须一致；服务端 UTC、前端本地时区，服务端上下各放宽 1 天避免凌晨误拒。两处任一改动都要同步 |
 | R11 | 大数据静默截断 | `list_team_entries` 分页 SQL 的 `ORDER BY entry_date DESC, id DESC` 必须保留（同日多条翻页不重不漏）；前端 50 页上限触发时抛业务错误，不得降级为部分数据 |
-| R12 | 多模板下发口径 | 管理端 `dashboard` / `reports` 的「应提交名单」必须走 `inAnyScope(所有已生效模板)`；只取最新一个模板会漏掉按成员/角色分别下发的成员 |
+| R12 | 应提交口径 | 管理端 `dashboard` / `reports` 必须调用服务端 `getReportTaskStatus`；口径实现只在 `app/services/expected.py`：有任务按任务 scope 并集，无任务回退全部已生效模板范围并集 |
 | R13 | 并发发布与预览 | `publishTemplate` 先 `SELECT ... FOR UPDATE` 锁团队行，再按冲突顺延 `version`（`uk_tpl_team_id_ver` 不再撞键）；草稿/归档 `getTemplate` 只放行管理员 |
 
 另：模板状态只能经 `publishTemplate` 变成 `published`；`createDraft` 强制 draft；`updateTemplateRow` 只允许把状态改为 `archived`（停用），且允许停用已发布模板。停用**不会**回退到上一版本（旧版本发布时已归档），管理端弹窗按实际剩余的已生效模板数量提示。审计 `log` 需校验团队归属，防止跨团队写入。
@@ -247,7 +263,8 @@ python -m pytest -q         # 契约与鉴权单测
 ## 11. 上线清单
 
 - [ ] `server/.env` 配齐 DB / `WX_APPID` / `WX_SECRET` / `JWT_SECRET`，`.env` 不入库
-- [ ] `python -m app.init_db` 成功，5 张表与唯一索引齐全
+- [ ] `python -m app.init_db` 成功，6 张表与唯一索引齐全
+- [ ] 存量环境执行 `server/sql/migrate_p2_report_tasks.sql`（幂等，仅建 `report_tasks`）
 - [ ] `utils/config.js` 的 `RELEASE_BASE` / `DEV_BASE` 指向已备案 HTTPS 域名
 - [ ] 微信公众平台配置 **request 合法域名**
 - [ ] Nginx 终止 TLS + gunicorn/systemd 托管，`/health` 可访问
@@ -260,7 +277,7 @@ python -m pytest -q         # 契约与鉴权单测
 
 | 检查项 | 方法 | 期望 |
 |---|---|---|
-| action 对账 | `cd server && python3 -m pytest -q tests/test_contract.py::test_all_legacy_actions_migrated`（即 finish.sh 验证 3 的单测） | 22 个，名称严格一一对应 |
+| action 对账 | `cd server && python3 -m pytest -q tests/test_contract.py`（即 finish.sh 验证 3 的单测） | 27 个，名称严格一一对应 |
 | 云开发残留 | 检索 `wx.cloud` / `cloud-config` / `cloudbaserc` | 活跃 JS 中 0 命中 |
 | 名称一致性 | 检索历史项目名字面（模式见 `server/finish.sh` 验证 5） | 活跃代码中 0 命中 |
 | Python 语法 | `python3 -m compileall -q server/app server/tests` | 全通过 |
@@ -271,12 +288,12 @@ python -m pytest -q         # 契约与鉴权单测
 | 跳转方式 | 检索 `navigateTo.*pages/index/index` | 0 命中（index 是 tabBar 页，必须用 `switchTab`） |
 | 占位域名 | 检索 `example.com` 在 `utils/config.js` | 上线前已替换；未替换时前端会明确报错 |
 | 补录窗口一致 | 对比 `utils/date.js` 与 `entries.py` 的 `BACKFILL_DAYS` | 两侧同为 31 |
-| 多模板口径 | 检索 `getActiveTemplate(..., true)` / `ignoreScope` | 0 命中；管理端只用 `getEffectiveTemplates` + `inAnyScope` |
+| 应提交口径 | 检索 `inAnyScope` / `getActiveTemplate(..., true)` / `ignoreScope` | 0 命中；管理端只用 `getReportTaskStatus` |
 | 死字段 | 检索 `hasTeam` / `myTeams` / `ignoreScope` | 仅历史注释可命中，代码 0 命中 |
 
 > 当前会话无命令行工具、无本地文件删除能力，也未配置 Python / JS 语言服务（LSP 探测均返回 "No LSP server configured"），因此编译、单测与 `node --check` 必须在**本机终端**执行。
 > `server/finish.sh` 已打包为 6 项一键验证：默认「列清单 → 输入 `yes` → 删除 + 验证」，`--yes` 免确认，`--verify-only` 只验证不删除；任一失败项会汇总为 `FAIL=1` 退出码。
-> 会话内**已实际执行**的静态验证：前端 22 个 action ↔ 后端 22 个 `HANDLERS`、云开发引用 0 命中、旧名称 0 命中（仅脚本检索模式自引用）、死字段 0 命中、`alwaysApply: true` 仅剩已改写的 `CODEBUDDY.md` 与脚本检索模式。
+> 会话内**已实际执行**的静态验证：前端 27 个 action ↔ 后端 27 个 `HANDLERS`、云开发引用 0 命中、旧名称 0 命中（仅脚本检索模式自引用）、死字段 0 命中、`alwaysApply: true` 仅剩已改写的 `CODEBUDDY.md` 与脚本检索模式。
 
 ---
 

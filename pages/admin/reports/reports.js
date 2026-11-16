@@ -85,19 +85,15 @@ Page({
       const date = this.data.date
       const range = dateUtil.rangeOf(period, date)
       this.setData({ rangeText: dateUtil.periodLabel(period, date) })
-      // 多模板分别下发时按全部已生效模板取范围并集（P2-3）
       const templates = await store.getEffectiveTemplates(ctx.team.team_id)
       const entries = await store.listTeamEntries(ctx.team.team_id, range[0], range[1])
-      const members = await store.listMembers(ctx.team.team_id)
-      const nameMap = {}
-      members.forEach(function (m) {
-        nameMap[m.user_id] = m.name
+      // 应提交范围与提交率统一由服务端计算（任务优先，无任务回退模板范围）
+      const status = await store.getReportTaskStatus({
+        teamId: ctx.team.team_id,
+        from: range[0],
+        to: range[1],
       })
-
-      // 应提交范围：命中任意一个已生效模板即算（与成员端 getActiveTemplate 语义一致）
-      const targets = members.filter(function (m) {
-        return m.status === 'active' && store.inAnyScope(templates, m)
-      })
+      const targets = status.expected || []
 
       // 跨版本合并（P1-4）：每个 entry 按其所属模板版本的字段定义聚合，按 fieldKey 合并
       const allTemplates = await store.listTemplates(ctx.team.team_id)
@@ -112,22 +108,13 @@ Page({
         return fieldsMap[key] || currentFields
       })
 
-      // 已提交人数（按 user 去重）与提交率（P1-1）
-      const submittedUsers = {}
-      entries.forEach(function (en) {
-        if (en.status === 'submitted') submittedUsers[en.user_id] = true
-      })
-      const submittedUserCount = Object.keys(submittedUsers).filter(function (uid) {
-        const m = members.filter(function (x) {
-          return x.user_id === uid
-        })[0]
-        return m && m.status === 'active' && store.inAnyScope(templates, m)
-      }).length
+      // 已提交人数（按 user 去重）由服务端返回，客户端不再自行判定口径
+      const submittedUserCount = status.submittedCount || 0
 
       const aggByUser = result.byUser
       const fieldDefs = result.fields
       const memberRows = targets.map(function (m) {
-        const agg = aggByUser[m.user_id]
+        const agg = aggByUser[m.userId]
         const cells = fieldDefs.map(function (fd) {
           if (!agg) return { label: fd.label, text: '-' }
           const uf = agg.fields[fd.fieldKey]
@@ -135,7 +122,7 @@ Page({
           return { label: fd.label, text: String(v) }
         })
         return {
-          userId: m.user_id,
+          userId: m.userId,
           name: m.name,
           submitted: !!(agg && agg.submitted),
           rowCount: agg ? agg.rowCount : 0,
@@ -209,7 +196,7 @@ Page({
       if (mainField && targets.length > 0) {
         memberRank = targets
           .map(function (m) {
-            const agg = aggByUser[m.user_id]
+            const agg = aggByUser[m.userId]
             const uf = agg ? agg.fields[mainField.fieldKey] : null
             const v = uf ? stats.displayValue(uf, mainField.method) : 0
             return { name: m.name, value: v, unit: mainField.unit || '', percent: 0, submitted: !!(agg && agg.submitted) }
@@ -228,18 +215,16 @@ Page({
         })
       }
 
-      const should = targets.length
-      const rate = should > 0 ? Math.min(100, Math.round((submittedUserCount / should) * 100)) : 0
       this.setData({
         loading: false,
         hasData: entries.length > 0,
-        hasTemplate: templates.length > 0,
+        hasTemplate: !!status.hasTemplate,
         summary: {
           entryCount: result.entryCount,
           rowCount: result.rowCount,
           submittedCount: submittedUserCount,
-          shouldCount: should,
-          rateText: rate + '%',
+          shouldCount: status.expectedCount || 0,
+          rateText: status.rateText || '0%',
         },
         fields: fieldBars,
         memberRows: memberRows,

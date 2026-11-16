@@ -75,6 +75,29 @@ CREATE TABLE IF NOT EXISTS `daily_entries` (
   KEY `idx_entry_team_user_date` (`team_id`, `user_id`, `entry_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 填报任务（P2）：任务是被考核的下发单元，scope 为创建时的快照。
+-- 当前阶段仍以 team_id 为租户边界；P4 引入工作空间后再补 workspace_id。
+CREATE TABLE IF NOT EXISTS `report_tasks` (
+  `id`               CHAR(24)     NOT NULL,
+  `team_id`          VARCHAR(32)  NOT NULL,
+  `task_key`         VARCHAR(64)  NOT NULL COMMENT '团队内稳定标识',
+  `title`            VARCHAR(128) NOT NULL,
+  `template_id`      VARCHAR(64)  NOT NULL,
+  `template_version` INT          NULL,
+  `scope`            JSON         NULL COMMENT '任务下发范围快照 {type,memberIds,roles}',
+  `start_date`       VARCHAR(10)  NOT NULL COMMENT 'YYYY-MM-DD',
+  `end_date`         VARCHAR(10)  NULL COMMENT 'YYYY-MM-DD，空表示长期',
+  `due_time`         VARCHAR(8)   NULL COMMENT 'HH:MM，当日截止时间',
+  `workdays_only`    TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '1=仅工作日应提交',
+  `status`           VARCHAR(16)  NOT NULL DEFAULT 'active' COMMENT 'active|closed',
+  `created_by`       VARCHAR(128) NULL,
+  `created_at`       VARCHAR(32)  NOT NULL,
+  `closed_at`        VARCHAR(32)  NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_task_team_key` (`team_id`, `task_key`),
+  KEY `idx_task_team_status` (`team_id`, `status`, `start_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 审计日志
 CREATE TABLE IF NOT EXISTS `audit_logs` (
   `id`          CHAR(24)     NOT NULL,
