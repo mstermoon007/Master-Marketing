@@ -349,6 +349,22 @@ def test_run_reuses_successful_task_and_does_not_write_again(monkeypatch):
     assert result == {"task": {"id": "task-1"}, "reused": True}
 
 
+def test_create_task_records_workspace(monkeypatch):
+    """任务创建时固化空间归属，运行监控可直接按 workspace_id 过滤。"""
+    inserted = {}
+
+    monkeypatch.setattr(engine.db, "one",
+                        lambda *a, **k: {"workspace_id": "W1"})
+    monkeypatch.setattr(engine, "_insert",
+                        lambda conn, table, data: inserted.update(data) or "task-9")
+
+    task = engine._create_task(None, "T1", "2026-11-10", "2026-11-11", 1, 1, "u1")
+
+    assert inserted["workspace_id"] == "W1"
+    assert task["workspace_id"] == "W1"
+    assert task["id"] == "task-9"
+
+
 def test_failed_execution_marks_task_failed_and_reraises(monkeypatch):
     updates = []
     monkeypatch.setattr(engine, "db", type("DB", (), {

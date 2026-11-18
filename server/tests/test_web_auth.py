@@ -34,7 +34,7 @@ def _body(resp):
 
 @pytest.fixture(autouse=True)
 def _secrets(monkeypatch):
-    monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret")
+    monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret-0123456789abcdef")
     monkeypatch.setattr(config, "WEB_TOKEN_TTL_HOURS", 12)
 
 
@@ -55,13 +55,14 @@ def test_web_and_mini_tokens_are_mutually_exclusive():
 
 def test_legacy_token_without_aud_still_valid():
     """P5 之前签发的 30 天 token 没有 aud，升级后必须继续可用。"""
-    import jwt
     import time
+
+    import jwt
 
     now = int(time.time())
     token = jwt.encode({
         "sub": "openid-old", "iss": auth.JWT_ISS, "iat": now, "exp": now + 3600,
-    }, "unit-test-secret", algorithm=auth.JWT_ALG)
+    }, config.JWT_SECRET, algorithm=auth.JWT_ALG)
     assert auth.extract_uid("Bearer " + token) == "openid-old"
 
 
@@ -103,14 +104,15 @@ def test_api_keeps_mini_token_behavior(monkeypatch):
 
 
 def test_api_unknown_audience_rejected(monkeypatch):
-    import jwt
     import time
+
+    import jwt
 
     now = int(time.time())
     token = jwt.encode({
         "sub": "openid-1", "iss": auth.JWT_ISS, "aud": "other",
         "iat": now, "exp": now + 3600,
-    }, "unit-test-secret", algorithm=auth.JWT_ALG)
+    }, config.JWT_SECRET, algorithm=auth.JWT_ALG)
     resp = main.api({"action": "listMyWorkspaces"}, "Bearer " + token)
     assert resp.status_code == 401
 

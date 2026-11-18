@@ -188,6 +188,7 @@ CREATE TABLE IF NOT EXISTS `analysis_rules` (
 CREATE TABLE IF NOT EXISTS `analysis_tasks` (
   `id`             CHAR(24)     NOT NULL,
   `team_id`        VARCHAR(32)  NOT NULL,
+  `workspace_id`   CHAR(24)     NULL COMMENT '冗余归属，服务端写入（P8）',
   `analysis_type`  VARCHAR(32)  NOT NULL DEFAULT 'period' COMMENT 'period',
   `period_start`   VARCHAR(10)  NOT NULL COMMENT 'YYYY-MM-DD',
   `period_end`     VARCHAR(10)  NOT NULL COMMENT 'YYYY-MM-DD',
@@ -203,7 +204,8 @@ CREATE TABLE IF NOT EXISTS `analysis_tasks` (
   `finished_at`    VARCHAR(32)  NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_analysis_idem` (`team_id`, `analysis_type`, `period_start`, `period_end`, `rule_version`),
-  KEY `idx_analysis_team_time` (`team_id`, `created_at`)
+  KEY `idx_analysis_team_time` (`team_id`, `created_at`),
+  KEY `idx_analysis_ws_time` (`workspace_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 分析结果（P3）：每个任务一条，含快照时间/指标版本/规则版本/执行号，可追溯
@@ -276,4 +278,53 @@ CREATE TABLE IF NOT EXISTS `web_login_tickets` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_web_ticket` (`ticket`),
   KEY `idx_web_ticket_status` (`status`, `expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 订阅设置（P6）：用户在某空间内对四类通知的开关（授权结果由小程序显式上报）
+CREATE TABLE IF NOT EXISTS `notification_settings` (
+  `id`           CHAR(24)     NOT NULL,
+  `workspace_id` CHAR(24)     NOT NULL DEFAULT '' COMMENT '所属工作空间；空串兼容未归属旧数据',
+  `user_id`      VARCHAR(128) NOT NULL COMMENT 'openid',
+  `notify_type`  VARCHAR(32)  NOT NULL COMMENT 'daily_remind|due_remind|missing_remind|anomaly_alert',
+  `enabled`      TINYINT(1)   NOT NULL DEFAULT 1,
+  `updated_at`   VARCHAR(32)  NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_notification_setting` (`workspace_id`, `user_id`, `notify_type`),
+  KEY `idx_notification_setting_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 通知投递记录（P6）：幂等键用于去重，未配置模板时记 skipped 而不调微信
+CREATE TABLE IF NOT EXISTS `notification_logs` (
+  `id`            CHAR(24)     NOT NULL,
+  `workspace_id`  CHAR(24)     NULL,
+  `team_id`       VARCHAR(32)  NULL,
+  `scope_key`     VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '去重作用域：团队 id 优先，其次空间 id',
+  `user_id`       VARCHAR(128) NOT NULL COMMENT '接收人 openid',
+  `notify_type`   VARCHAR(32)  NOT NULL,
+  `period_key`    VARCHAR(64)  NOT NULL COMMENT '去重周期，如 daily:2026-11-18',
+  `template_id`   VARCHAR(64)  NULL,
+  `status`        VARCHAR(16)  NOT NULL DEFAULT 'pending' COMMENT 'pending|sent|skipped|failed',
+  `error_message` VARCHAR(512) NULL,
+  `payload`       JSON         NULL COMMENT '模板数据与上下文快照',
+  `created_at`    VARCHAR(32)  NOT NULL,
+  `sent_at`       VARCHAR(32)  NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_notify_dedupe` (`user_id`, `notify_type`, `scope_key`, `period_key`),
+  KEY `idx_notify_ws_time` (`workspace_id`, `created_at`),
+  KEY `idx_notify_team_time` (`team_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 调度心跳（P6）：独立 scheduler 容器每 60s 刷新一次，Web 端据此判断调度是否存活
+CREATE TABLE IF NOT EXISTS `scheduler_heartbeats` (
+  `id`          CHAR(24)     NOT NULL,
+  `job_id`      VARCHAR(64)  NOT NULL COMMENT '作业标识，如 p6_daily_remind',
+  `job_name`    VARCHAR(128) NOT NULL,
+  `next_run_at` VARCHAR(32)  NULL COMMENT '下次执行时间（ISO8601）',
+  `last_run_at` VARCHAR(32)  NULL COMMENT '最近一次执行完成时间',
+  `last_status` VARCHAR(16)  NOT NULL DEFAULT 'ok' COMMENT 'ok|failed',
+  `last_error`  VARCHAR(512) NULL,
+  `updated_at`  VARCHAR(32)  NOT NULL COMMENT '心跳刷新时间；超过阈值视为调度未运行',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_scheduler_job` (`job_id`),
+  KEY `idx_scheduler_updated` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

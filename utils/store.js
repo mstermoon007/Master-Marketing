@@ -240,6 +240,24 @@ async function updateDepartment(workspaceId, id, patch) {
     Object.assign({ workspaceId: workspaceId, id: id }, patch || {}))
 }
 
+// ---------- 消息通知（P6）----------
+// settings: { daily_remind: true, due_remind: false, ... }，只记录本人在当前空间的授权结果
+async function saveNotificationSettings(teamId, settings) {
+  return callApi('saveNotificationSettings', {
+    teamId: teamId,
+    settings: settings || {},
+  })
+}
+
+async function getNotificationSettings(teamId) {
+  return callApi('getNotificationSettings', { teamId: teamId })
+}
+
+// 订阅授权所需的模板 ID；唯一来源是服务端 WX_TMPL_*，小程序只做缓存
+async function getSubscribeTemplates() {
+  return callApi('getSubscribeTemplates', {})
+}
+
 // ---------- 录入 ----------
 async function getMyEntry(teamId, date) {
   return callApi('getMyEntry', { teamId: teamId, date: date })
@@ -335,6 +353,9 @@ module.exports = {
   listDepartments,
   createDepartment,
   updateDepartment,
+  saveNotificationSettings,
+  getNotificationSettings,
+  getSubscribeTemplates,
   getMyEntry,
   saveEntry,
   listMyEntries,

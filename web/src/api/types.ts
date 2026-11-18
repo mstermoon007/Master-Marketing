@@ -124,6 +124,47 @@ export interface WorkspaceOverview {
   teams: OverviewTeam[]
 }
 
+export interface RuntimeMonitor {
+  workspaceId: string
+  windowDays: number
+  since: string
+  analysis: {
+    total: number
+    success: number
+    failed: number
+    running: number
+    successRate: number | null
+    avgDurationMs: number | null
+  }
+  notifications: {
+    total: number
+    sent: number
+    skipped: number
+    failed: number
+    pending: number
+    byType: Array<{
+      type: string
+      typeText: string
+      sent: number
+      skipped: number
+      failed: number
+      pending: number
+    }>
+  }
+  scheduler: {
+    enabled: boolean
+    running: boolean
+    source: 'process' | 'heartbeat' | 'none'
+    stale: boolean
+    lastHeartbeatAt: string | null
+    timezone: string
+    dailyRemindTime: string
+    missingRemindTime: string
+    remindBeforeMinutes: number
+    jobs: Array<{ id: string; name: string; nextRun: string | null }>
+  }
+}
+
 export interface AuditRow {
   id: string
   team_id: string | null

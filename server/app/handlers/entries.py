@@ -8,8 +8,14 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from .. import db
-from .common import (BusinessError, audit, require_date, require_manager,
-                     require_member, require_writer)
+from .common import (
+    BusinessError,
+    audit,
+    require_date,
+    require_manager,
+    require_member,
+    require_writer,
+)
 
 _ENTRY_COLUMNS = frozenset({
     "team_id", "entry_date", "template_id", "template_version",

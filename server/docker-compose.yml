@@ -33,10 +33,14 @@ services:
       # 首次启动自动导入 schema.sql（仅数据卷为空时执行）
       - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_PASSWORD:?}"]
+      # 必须走 TCP 且真实查询：初始化阶段的临时实例只监听 socket，
+      # 原来的 `mysqladmin ping -h localhost` 会在此时误判为健康。
+      test:
+        ["CMD-SHELL", "mysql -h 127.0.0.1 -u\"$$MYSQL_USER\" -p\"$$MYSQL_PASSWORD\" \"$$MYSQL_DATABASE\" -e 'SELECT 1' >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 8
+      start_period: 30s
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
@@ -65,6 +69,17 @@ services:
       # JWT 签名（必填）
       JWT_SECRET: ${JWT_SECRET:?请在 .env 设置 JWT_SECRET}
       JWT_TTL_DAYS: ${JWT_TTL_DAYS:-30}
+      # P6 消息通知（模板留空 = 只记录 skipped，不调微信）
+      WX_TMPL_DAILY_REMIND: ${WX_TMPL_DAILY_REMIND:-}
+      WX_TMPL_DUE_REMIND: ${WX_TMPL_DUE_REMIND:-}
+      WX_TMPL_MISSING_REMIND: ${WX_TMPL_MISSING_REMIND:-}
+      WX_TMPL_ANOMALY_ALERT: ${WX_TMPL_ANOMALY_ALERT:-}
+      # P6 调度已拆分到 scheduler 服务：Web 进程一律不跑调度
+      SCHEDULER_ENABLED: "0"
+      SCHEDULER_TZ: ${SCHEDULER_TZ:-Asia/Shanghai}
+      DAILY_REMIND_TIME: ${DAILY_REMIND_TIME:-09:00}
+      MISSING_REMIND_TIME: ${MISSING_REMIND_TIME:-20:00}
+      REMIND_BEFORE_MINUTES: ${REMIND_BEFORE_MINUTES:-30}
       PORT: "8000"
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:-8001}:8000"
@@ -77,6 +92,39 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      - jinribao_network
+
+  # ---- P6 独立调度进程（不暴露端口，只连 MySQL / 微信接口）----
+  scheduler:
+    image: jinribao-backend:latest
+    container_name: jinribao_scheduler
+    mem_limit: 128m
+    command: ["python", "-m", "app.scheduler_worker"]
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: ${DB_USER:-jinribao}
+      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 设置 DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-jinribao}
+      WX_APPID: ${WX_APPID:?请在 .env 设置 WX_APPID}
+      WX_SECRET: ${WX_SECRET:?请在 .env 设置 WX_SECRET}
+      WX_HTTP_TIMEOUT: ${WX_HTTP_TIMEOUT:-5}
+      WX_TMPL_DAILY_REMIND: ${WX_TMPL_DAILY_REMIND:-}
+      WX_TMPL_DUE_REMIND: ${WX_TMPL_DUE_REMIND:-}
+      WX_TMPL_MISSING_REMIND: ${WX_TMPL_MISSING_REMIND:-}
+      WX_TMPL_ANOMALY_ALERT: ${WX_TMPL_ANOMALY_ALERT:-}
+      SCHEDULER_ENABLED: "1"
+      SCHEDULER_TZ: ${SCHEDULER_TZ:-Asia/Shanghai}
+      DAILY_REMIND_TIME: ${DAILY_REMIND_TIME:-09:00}
+      MISSING_REMIND_TIME: ${MISSING_REMIND_TIME:-20:00}
+      REMIND_BEFORE_MINUTES: ${REMIND_BEFORE_MINUTES:-30}
+    depends_on:
+      mysql:
+        condition: service_healthy
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped

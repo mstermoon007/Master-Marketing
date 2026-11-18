@@ -12,7 +12,7 @@ import re
 import secrets
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, cast
 
 import pymysql
 from pymysql.cursors import DictCursor
@@ -36,6 +36,9 @@ JSON_COLUMNS: Dict[str, List[str]] = {
     "analysis_results": ["summary", "data_quality"],
     "analysis_findings": ["detail", "data_refs"],
     "web_login_tickets": ["workspace_ids"],
+    "notification_settings": [],
+    "notification_logs": ["payload"],
+    "scheduler_heartbeats": [],
 }
 
 
@@ -92,7 +95,7 @@ def row_to_dict(row: Optional[dict], table: str) -> Optional[dict]:
 
 
 def rows_to_dicts(rows: List[dict], table: str) -> List[dict]:
-    return [row_to_dict(r, table) for r in rows]
+    return cast(List[dict], [row_to_dict(r, table) for r in rows])
 
 
 def query(conn, sql: str, args=None) -> List[dict]:

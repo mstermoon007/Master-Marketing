@@ -5,7 +5,8 @@ getReportTaskStatus / closeReportTask
 应提交口径统一走 services.expected，禁止在本文件另写一套。
 """
 import re
-from datetime import date as date_cls, datetime
+from datetime import date as date_cls
+from datetime import datetime
 
 from .. import db
 from ..services import expected

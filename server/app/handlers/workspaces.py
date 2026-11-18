@@ -11,8 +11,7 @@ action：listMyWorkspaces / switchWorkspace / createWorkspace / updateWorkspace 
 """
 from .. import db
 from ..services import org
-from .common import (BusinessError, audit, find_member_by_uid,
-                     require_workspace_role, team_access)
+from .common import BusinessError, audit, find_member_by_uid, require_workspace_role, team_access
 
 _MAX_NAME = 128
 

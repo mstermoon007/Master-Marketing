@@ -8,12 +8,12 @@ action：confirmWebLogin / getWorkspaceOverview / listAuditLogs
 - listAuditLogs：空间 owner/admin 的审计分页，workspace_id 强制过滤。
 """
 import re
-from datetime import date as date_cls, timedelta
+from datetime import date as date_cls
+from datetime import timedelta
 
 from .. import db
 from ..services import dataset, expected, metrics, org
-from .common import (BusinessError, audit, require_date,
-                     require_workspace_role)
+from .common import BusinessError, audit, require_date, require_workspace_role
 
 _TICKET_RE = re.compile(r"^[0-9a-f]{32}$")
 _MAX_PAGE_SIZE = 200
@@ -165,7 +165,8 @@ def get_workspace_overview(conn, uid, p):
         conn,
         "SELECT COUNT(*) AS c FROM `analysis_findings` f "
         "JOIN `analysis_tasks` t ON t.id = f.task_id "
-        "WHERE t.workspace_id = %s AND f.level IN ('warning', 'critical') "
+        "JOIN `teams` tm ON tm.team_id = t.team_id "
+        "WHERE tm.workspace_id = %s AND f.level IN ('warning', 'critical') "
         "AND f.created_at >= %s",
         (workspace["id"], since),
     )

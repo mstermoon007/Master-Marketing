@@ -45,6 +45,12 @@ P5_ACTIONS = {
     "confirmWebLogin", "getWorkspaceOverview", "listAuditLogs",
 }
 
+# P6 新增的 4 个消息通知与运行监控 action
+P6_ACTIONS = {
+    "getSubscribeTemplates", "getNotificationSettings", "saveNotificationSettings",
+    "listNotificationLogs", "getRuntimeMonitor",
+}
+
 # listEntriesByUser 在旧云函数中零调用，审阅确认为死分支，本次清理未迁移
 REMOVED_DEAD_ACTIONS = {"listEntriesByUser"}
 
@@ -56,8 +62,26 @@ def test_all_legacy_actions_migrated():
 
 def test_all_actions_registered():
     assert set(HANDLERS) == (LEGACY_ACTIONS | P2_ACTIONS | P3_ACTIONS
-                             | P4_ACTIONS | P5_ACTIONS)
-    assert len(HANDLERS) == 47
+                             | P4_ACTIONS | P5_ACTIONS | P6_ACTIONS)
+    assert len(HANDLERS) == 52
+
+
+def test_action_metadata_complete():
+    """每个 action 都必须有元数据，且 HANDLERS/白名单由元数据派生。"""
+    from app.handlers import ACTIONS, HANDLERS, MINI_ONLY_ACTIONS, WEB_ACTIONS
+
+    assert set(ACTIONS) == set(HANDLERS)
+    for meta in ACTIONS.values():
+        assert meta.summary, meta.name
+        assert meta.module in {
+            "teams", "members", "templates", "entries", "audit", "tasks",
+            "analysis", "workspaces", "web", "notify",
+        }
+        assert meta.handler is HANDLERS[meta.name]
+        assert not (meta.web and meta.mini_only)
+
+    assert WEB_ACTIONS == frozenset(n for n, m in ACTIONS.items() if m.web)
+    assert MINI_ONLY_ACTIONS == frozenset({"confirmWebLogin"})
 
 
 def test_unknown_action_raises_business_error():
@@ -66,13 +90,13 @@ def test_unknown_action_raises_business_error():
 
 
 def test_jwt_roundtrip(monkeypatch):
-    monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret")
+    monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret-0123456789abcdef")
     token = auth.issue_token("openid-abc", "unionid-1")
     assert auth.extract_uid("Bearer " + token) == "openid-abc"
 
 
 def test_jwt_rejects_tampered_and_malformed(monkeypatch):
-    monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret")
+    monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret-0123456789abcdef")
     assert auth.extract_uid(None) is None
     assert auth.extract_uid("Basic abc") is None
     assert auth.extract_uid("Bearer garbage") is None
@@ -82,13 +106,14 @@ def test_jwt_rejects_tampered_and_malformed(monkeypatch):
 
 
 def test_expired_token_rejected(monkeypatch):
-    import jwt
     import time
-    monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret")
+
+    import jwt
+    monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret-0123456789abcdef")
     now = int(time.time())
     expired = jwt.encode(
         {"sub": "openid-abc", "iss": auth.JWT_ISS, "iat": now - 7200, "exp": now - 3600},
-        "unit-test-secret", algorithm=auth.JWT_ALG,
+        config.JWT_SECRET, algorithm=auth.JWT_ALG,
     )
     assert auth.extract_uid("Bearer " + expired) is None
 
@@ -107,6 +132,7 @@ def test_json_column_mapping_covers_all_tables():
         "teams", "members", "form_templates", "daily_entries", "audit_logs",
         "report_tasks", "analysis_metrics", "analysis_rules", "analysis_tasks",
         "analysis_results", "analysis_findings", "web_login_tickets",
+        "notification_settings", "notification_logs", "scheduler_heartbeats",
     }
     assert db.JSON_COLUMNS["workspaces"] == ["config"]
     assert "form_data" in db.JSON_COLUMNS["daily_entries"]
@@ -115,6 +141,8 @@ def test_json_column_mapping_covers_all_tables():
     assert db.JSON_COLUMNS["analysis_rules"] == ["params"]
     assert db.JSON_COLUMNS["analysis_results"] == ["summary", "data_quality"]
     assert db.JSON_COLUMNS["web_login_tickets"] == ["workspace_ids"]
+    assert db.JSON_COLUMNS["notification_logs"] == ["payload"]
+    assert db.JSON_COLUMNS["notification_settings"] == []
 
 
 def test_schema_has_required_unique_keys():
@@ -125,8 +153,16 @@ def test_schema_has_required_unique_keys():
         "uk_tpl_team_id_ver", "uk_entry_team_user_date", "uk_task_team_key",
         "uk_metric_code_ver", "uk_rule_code_ver", "uk_analysis_idem",
         "uk_result_task", "uk_finding_task_code", "uk_web_ticket",
+        "uk_notification_setting", "uk_notify_dedupe", "uk_scheduler_job",
     ):
         assert key in sql
+
+
+def test_notify_dedupe_isolated_by_scope():
+    """去重键必须带 scope_key，否则同一用户跨团队会互相吞通知。"""
+    sql = (Path(__file__).resolve().parent.parent / "sql" / "schema.sql").read_text("utf-8")
+    assert ("UNIQUE KEY `uk_notify_dedupe` "
+            "(`user_id`, `notify_type`, `scope_key`, `period_key`)") in sql
 
 
 def test_illegal_identifiers_rejected():
@@ -263,7 +299,8 @@ def test_disabled_member_gets_clear_error(monkeypatch):
 def test_entry_date_window_rejects_future_and_stale_dates():
     """补录窗口必须在服务端独立校验，不能只信前端日历。"""
     from datetime import datetime, timedelta, timezone
-    from app.handlers.entries import _check_entry_date, BACKFILL_DAYS
+
+    from app.handlers.entries import BACKFILL_DAYS, _check_entry_date
 
     assert BACKFILL_DAYS == 31
     now = datetime.now(timezone.utc)

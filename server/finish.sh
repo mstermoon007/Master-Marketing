@@ -21,10 +21,10 @@ FAIL=0
 DEPS_MISSING=0
 note_fail() { FAIL=1; }
 
-echo "=== 验证 1/6 Python 依赖预检 ==="
+echo "=== 验证 1/8 Python 依赖预检 ==="
 if command -v python3 >/dev/null 2>&1; then
-  if python3 -c 'import fastapi, pymysql, jwt, pytest' 2>/dev/null; then
-    echo "  fastapi / pymysql / PyJWT / pytest：齐备"
+  if python3 -c 'import fastapi, pymysql, jwt, pytest, apscheduler' 2>/dev/null; then
+    echo "  fastapi / pymysql / PyJWT / pytest / APScheduler：齐备"
   else
     echo "  缺少依赖 → 请在 server/ 目录执行： pip install -r requirements.txt"
     DEPS_MISSING=1
@@ -34,7 +34,7 @@ else
   DEPS_MISSING=1
 fi
 
-echo "=== 验证 2/6 Python 语法编译（不依赖第三方库）==="
+echo "=== 验证 2/8 Python 语法编译（不依赖第三方库）==="
 if command -v python3 >/dev/null 2>&1; then
   if python3 -m compileall -q server/app server/tests; then
     echo "  compileall：通过"
@@ -46,7 +46,7 @@ else
   echo "  跳过（无 python3）"
 fi
 
-echo "=== 验证 3/6 契约与业务流程单测 ==="
+echo "=== 验证 3/8 契约与业务流程单测 ==="
 if [ "$DEPS_MISSING" -eq 1 ]; then
   echo "  跳过（依赖未安装，先 pip install -r server/requirements.txt）"
 else
@@ -58,7 +58,7 @@ else
   fi
 fi
 
-echo "=== 验证 4/6 小程序 JS 语法 ==="
+echo "=== 验证 4/8 小程序 JS 语法 ==="
 if command -v node >/dev/null 2>&1; then
   JS_FAIL=0
   JS_COUNT=0
@@ -80,7 +80,7 @@ fi
 # 注：前后端 action 名称逐一对应由 server/tests/test_contract.py 负责，
 # 此处不再用正则二次校验（旧正则会把字典键误判为 action）。
 
-echo "=== 验证 5/6 残留引用与名称一致性 ==="
+echo "=== 验证 5/8 残留引用与名称一致性 ==="
 if grep -rnE "wx\.cloud\.|require\(['\"]\./cloud['\"]\)|require\(['\"]\./cloud-config['\"]\)" \
     --include='*.js' utils pages components app.js 2>/dev/null; then
   echo "  ↑ 云开发引用仍有命中，请人工确认"
@@ -107,12 +107,48 @@ else
   echo "  死字段与多模板旧口径：无残留"
 fi
 
-echo "=== 验证 6/6 首次启动配置自检（仅提示，不算失败）==="
+echo "=== 验证 6/8 首次启动配置自检（仅提示，不算失败）==="
 if [ ! -f server/.env ]; then
   echo "  [待办] server/.env 尚未创建 → cp server/.env.example server/.env 并填 AppID/AppSecret/JWT_SECRET/MySQL"
 fi
 if grep -q 'api.example.com' utils/config.js 2>/dev/null; then
   echo "  [待办] utils/config.js 的 BASE_URL 仍是占位域名 → 上线前替换为已备案 HTTPS 域名"
+fi
+
+echo "=== 验证 7/8 Python 静态检查（ruff + mypy）==="
+if python3 -m ruff --version >/dev/null 2>&1 && python3 -m mypy --version >/dev/null 2>&1; then
+  if (cd server && python3 -m ruff check app tests && python3 -m mypy app); then
+    echo "  ruff + mypy：通过"
+  else
+    echo "  静态检查未通过 ↑"
+    note_fail
+  fi
+else
+  echo "  跳过（安装：pip install -r server/requirements-dev.txt）"
+fi
+
+echo "=== 验证 8/8 Web 工作台单测（vitest）==="
+if command -v npm >/dev/null 2>&1 && [ -d web/node_modules ]; then
+  if (cd web && npm test --silent); then
+    echo "  vitest：通过"
+  else
+    echo "  vitest：未通过 ↑"
+    note_fail
+  fi
+else
+  echo "  跳过（cd web && npm ci 后重试）"
+fi
+
+echo "=== 可选：真实 MySQL 集成测试 ==="
+if [ -n "${TEST_MYSQL_URL:-}" ]; then
+  if (cd server && python3 -m pytest -q tests/test_db_integration.py); then
+    echo "  pytest 集成测试：通过"
+  else
+    echo "  pytest 集成测试：未通过 ↑"
+    note_fail
+  fi
+else
+  echo "  未设置 TEST_MYSQL_URL，跳过（起库命令见 server/README.md）"
 fi
 
 echo
@@ -121,5 +157,5 @@ if [ "$FAIL" -eq 0 ]; then
 else
   echo "=== 完成：存在失败项，见上方 ↑ ==="
 fi
-echo "部署迁移：server/sql/migrate_p2_report_tasks.sql → server/sql/migrate_p3_analysis.sql → server/sql/migrate_p4_workspaces.sql → server/sql/migrate_p5_web_tickets.sql"
+echo "部署迁移：server/sql/migrate_p2_report_tasks.sql → server/sql/migrate_p3_analysis.sql → server/sql/migrate_p4_workspaces.sql → server/sql/migrate_p5_web_tickets.sql → server/sql/migrate_p6_notifications.sql → server/sql/migrate_p6_heartbeat.sql → server/sql/migrate_p7_notify_scope.sql → server/sql/migrate_p8_analysis_workspace.sql"
 exit "$FAIL"

@@ -5,8 +5,8 @@
 - 部门最多 3 级，服务端强制；
 - 团队访问 = 团队成员 ∪ 空间 owner/admin ∪ 部门负责人（限其部门子树）。
 """
-from typing import Dict, List, Optional
 import secrets
+from typing import Dict, List, Optional
 
 from .. import db
 
@@ -139,7 +139,7 @@ def ancestor_ids(rows: List[dict], department_id: Optional[str]) -> List[str]:
         return []
     index = {r["id"]: r for r in rows}
     out: List[str] = []
-    current = department_id
+    current: Optional[str] = department_id
     guard = 0
     while current and current in index and guard <= MAX_DEPARTMENT_DEPTH + 1:
         out.append(current)

@@ -8,8 +8,15 @@ P4 起一个 openid 可属于多个工作空间与团队：
 """
 from .. import db
 from ..services import org
-from .common import (BusinessError, audit, find_team_by_id, gen_team_code,
-                     require_manager, require_member, require_workspace_role)
+from .common import (
+    BusinessError,
+    audit,
+    find_team_by_id,
+    gen_team_code,
+    require_manager,
+    require_member,
+    require_workspace_role,
+)
 
 
 def _validate_department(conn, workspace_id: str, department_id):

@@ -180,9 +180,20 @@ def _lock_task(conn, team_id, from_day, to_day, rule_version):
     return db.row_to_dict(row, "analysis_tasks")
 
 
+def _workspace_of(conn, team_id):
+    """按团队反查工作空间：分析任务落库时固化租户归属，查询不再 JOIN teams。"""
+    row = db.one(
+        conn,
+        "SELECT workspace_id FROM `teams` WHERE team_id = %s LIMIT 1",
+        (team_id,),
+    )
+    return (row or {}).get("workspace_id") or None
+
+
 def _create_task(conn, team_id, from_day, to_day, metric_version, rule_version, actor):
     payload = {
         "team_id": team_id,
+        "workspace_id": _workspace_of(conn, team_id),
         "analysis_type": ANALYSIS_TYPE,
         "period_start": from_day,
         "period_end": to_day,

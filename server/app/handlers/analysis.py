@@ -4,13 +4,16 @@
 参数：查询类用 camelCase 顶层参数（teamId / from / to / id / taskId）。
 写权限：本文件只写 analysis_*（由 engine 护栏保证）与 audit_logs（审计）。
 """
+import logging
 from datetime import date as date_cls
 
 from .. import db
 from ..services import engine
+from ..services import notify as notify_service
 from .common import BusinessError, audit, require_date, require_manager
 
 _MAX_ANALYSIS_DAYS = 366
+logger = logging.getLogger("jinribao.analysis")
 
 
 def _team_id(p):
@@ -59,7 +62,7 @@ def list_analysis_rules(conn, uid, p):
 
 def run_analysis(conn, uid, p):
     team_id = _team_id(p)
-    require_manager(conn, uid, team_id)
+    ctx = require_manager(conn, uid, team_id)
     from_day, to_day = _period(p)
     result = engine.run(conn, team_id, from_day, to_day, uid)
     audit(conn, uid, team_id, "analysis_run" if not result.get("reused") else "analysis_reuse",
@@ -69,6 +72,14 @@ def run_analysis(conn, uid, p):
               "metricVersion": result["task"].get("metricVersion"),
               "ruleVersion": result["task"].get("ruleVersion"),
           })
+    # 异常预警是分析的下游动作：失败只记日志，绝不影响分析结果返回
+    try:
+        notify_service.notify_anomalies(
+            conn, team_id, result["task"]["id"], result.get("findings") or [],
+            workspace_id=ctx.get("workspace_id"),
+        )
+    except Exception:
+        logger.exception("anomaly notification failed: %s", team_id)
     return result
 
 

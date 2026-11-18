@@ -6,6 +6,9 @@ const { validateRow } = require('../../utils/validator')
 // records 页「补录 / 去修改」通过 Storage 传递目标日期（tabBar 页不能带参数跳转）
 const BACKFILL_KEY = 'backfill_date'
 
+// 订阅消息模板 ID 的唯一来源是服务端 WX_TMPL_*；首页 onShow 拉取后缓存到这里
+const SUBSCRIBE_CACHE_KEY = 'subscribe_templates'
+
 // 草稿自动保存：停止输入 3 秒后落库，本地副本 0.8 秒节流（仅作离线兜底）
 const AUTOSAVE_DELAY = 3000
 const LOCAL_DRAFT_DELAY = 800
@@ -121,6 +124,7 @@ Page({
         return
       }
       this.ctx = ctx
+      this.refreshSubscribeTemplates()
       await this.loadPage(ctx)
     } catch (e) {
       // 登录态已失效（401 已清 token）时直接回登录页，别显示空壳主界面
@@ -461,6 +465,9 @@ Page({
   },
 
   onSubmit: function () {
+    // 订阅授权必须由用户点击同步触发：放在异步提交之后微信会判定为非法调用。
+    // 提交失败时最多多授权一次，不会有实际消息发出。
+    this.requestNotifications()
     this.save('submitted')
   },
 
@@ -552,6 +559,68 @@ Page({
       wx.showToast({ title: e.message || '保存失败', icon: 'none' })
     }
     this.setData({ submitting: false })
+  },
+
+  // 模板 ID 以服务端环境变量为唯一来源：每次进首页拉一次并缓存，避免与小程序本地配置漂移
+  refreshSubscribeTemplates: function () {
+    return store.getSubscribeTemplates().then(function (res) {
+      const map = (res && res.templates) || {}
+      try {
+        wx.setStorageSync(SUBSCRIBE_CACHE_KEY, map)
+      } catch (e) {
+        // 缓存失败不影响功能，本次不弹授权即可
+      }
+    }).catch(function () {
+      // 拉取失败沿用上次缓存；没有缓存时本次不弹授权
+    })
+  },
+
+  // ---------- 订阅消息（P6）----------
+  // 微信单次最多 3 个模板，超过会整次失败；按优先级分批、每次点击只弹一组，
+  // 批次按团队轮换，连续提交即可覆盖全部模板。
+  // 仅对已配置模板的通知类型弹授权；用户拒绝只记录 false，不阻断填报。
+  requestNotifications: function () {
+    if (!this.ctx || !this.ctx.team || !this.data.template) return
+    let map = null
+    try {
+      map = wx.getStorageSync(SUBSCRIBE_CACHE_KEY) || null
+    } catch (e) {
+      map = null
+    }
+    if (!map || typeof map !== 'object') return
+    const order = ['daily_remind', 'due_remind', 'missing_remind', 'anomaly_alert']
+    const types = order.filter(function (key) { return !!map[key] })
+    if (!types.length) return
+
+    const batches = []
+    for (let i = 0; i < types.length; i += 3) batches.push(types.slice(i, i + 3))
+    const storageKey = 'notify_batch_' + this.ctx.team.team_id
+    let cursor = 0
+    try {
+      cursor = Number(wx.getStorageSync(storageKey)) || 0
+      wx.setStorageSync(storageKey, (cursor + 1) % batches.length)
+    } catch (e) {
+      cursor = 0
+    }
+    const batch = batches[cursor % batches.length]
+
+    try {
+      wx.requestSubscribeMessage({
+        tmplIds: batch.map(function (key) { return map[key] }),
+        success: function (res) {
+          const settings = {}
+          batch.forEach(function (key) {
+            settings[key] = res[map[key]] === 'accept'
+          })
+          store.saveNotificationSettings(this.ctx.team.team_id, settings).catch(function () {})
+        }.bind(this),
+        fail: function () {
+          // 授权弹窗失败（基础库不支持 / 用户取消）不影响提交流程
+        },
+      })
+    } catch (e) {
+      // 低版本基础库无此 API 时静默跳过
+    }
   },
 
   // ---------- 登录 ----------

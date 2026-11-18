@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: 服务端静态检查与测试
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: jinribao_it
+        ports:
+          - 3308:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ptest --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: server/requirements*.txt
+
+      - name: 安装依赖
+        run: pip install -r requirements-dev.txt
+
+      - name: ruff
+        run: python -m ruff check app tests
+
+      - name: mypy
+        run: python -m mypy app
+
+      - name: pytest
+        run: python -m pytest -q
+
+      - name: 真实 MySQL 集成测试
+        env:
+          TEST_MYSQL_URL: mysql://root:test@127.0.0.1:3308/jinribao_it
+        run: python -m pytest -q tests/test_db_integration.py
+
+  mini-program:
+    name: 小程序语法检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: node --check
+        run: |
+          fail=0
+          count=0
+          while IFS= read -r file; do
+            count=$((count + 1))
+            node --check "$file" || fail=1
+          done < <(find app.js utils pages components -name '*.js' -type f)
+          echo "检查 $count 个文件"
+          exit "$fail"
+
+  web:
+    name: Web 工作台构建
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: 单元测试
+        run: npm test
+
+      - run: npm run build

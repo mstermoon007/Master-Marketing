@@ -11,12 +11,14 @@
 | 文档 | 内容 |
 |---|---|
 | `README.md`（本文） | 项目总览、技术栈、快速开始、文档导航 |
-| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | **开发文档**：架构、接口契约、47 个 action、数据表、Web 扫码登录、安全约定、回归清单、**§16 真机联调清单** |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | **开发文档**：架构、接口契约、52 个 action、数据表、Web 扫码登录、消息通知与调度、安全约定、回归清单、**§16 真机联调清单** |
 | [`server/README.md`](server/README.md) | 服务端部署与运维（环境变量、建表、进程、域名、Web 后台） |
-| [`server/sql/schema.sql`](server/sql/schema.sql) | MySQL 8 建表脚本（15 张表 + 唯一索引） |
+| [`server/sql/schema.sql`](server/sql/schema.sql) | MySQL 8 建表脚本（18 张表 + 唯一索引） |
 | `CODEBUDDY.md` | **项目开发约定**（IDE 自动加载）：自有服务端架构与强制约束，**保留项，勿删** |
 | `server/tests/` | 契约、鉴权与业务流程单元测试 |
-| `server/finish.sh` | 6 项静态验证（只验证，不修改/删除任何文件） |
+| `server/finish.sh` | 8 项验证（只验证，不修改/删除任何文件） |
+
+> 口径以 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §0 为准：产品阶段用 P0–P8，工程质量轮次用 G0–G2，二者不混用。
 
 ## 架构
 
@@ -29,7 +31,7 @@
    │  POST /auth/login          wx.login code → code2session → 签发小程序 JWT
    │  POST /auth/web/ticket     管理后台扫码票据 + 小程序码
    │  POST /auth/web/ticket/status  轮询 → 一次性签发 aud=web JWT
-   │  POST /api                 47 个 action 统一分发，按 aud 做白名单
+   │  POST /api                 52 个 action 统一分发，按 aud 做白名单
    │  POST /api/export/entries  团队日报 Excel 导出
    │  GET  /health              健康检查
    ▼
@@ -52,7 +54,7 @@ Web 管理后台 web/（Vue 3 + Vite + Element Plus + Pinia）
 ## 快速开始
 
 ```bash
-# 1) 服务端
+# 1) 服务端（本机直跑：后端 8000）
 cd server
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -60,34 +62,38 @@ cp .env.example .env          # 填 DB / WX_APPID / WX_SECRET / JWT_SECRET
 python -m app.init_db         # 幂等建库建表
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-# 2) 小程序：改 utils/config.js 的 RELEASE_BASE / DEV_BASE 为已备案 HTTPS 域名
-#    用微信开发者工具导入项目根目录；开发期可勾选「不校验合法域名」
+# 或：Docker Compose（后端 127.0.0.1:8001，MySQL 127.0.0.1:3307）
+docker compose up -d --build  # 在 server/ 目录执行
 
-# 3) Web 管理后台（可选）
-cd web
+# 2) 小程序：RELEASE_BASE 填生产 HTTPS 已备案域名；DEV_BASE 与所选运行方式一致
+#    本机直跑用 http://127.0.0.1:8000，Compose 用 http://127.0.0.1:8001
+
+# 3) Web 管理后台（可选，回到仓库根目录）
+cd ../web
 npm ci
-npm run dev        # http://localhost:5173，代理到本机 8000
+npm run dev        # http://localhost:5173，默认代理到本机 8000（Compose 改为 8001）
 
-# 4) 验证（只跑 6 项静态检查，不修改任何文件）
+# 4) 验证（回到仓库根目录；只跑 8 项验证，不修改任何文件）
+cd ..
 bash server/finish.sh
 ```
 
 ### 首次启动自检（导入项目后先做这 3 件事）
 
-1. `utils/config.js` 的 `RELEASE_BASE` / `DEV_BASE` 换成真实 HTTPS 域名；仍是 `example.com` 时，请求会直接报「服务端地址尚未配置」，而不是笼统的网络错误。
+1. `utils/config.js`：`RELEASE_BASE` 填生产 HTTPS 已备案域名；`DEV_BASE` 默认 `http://127.0.0.1:8001`（Compose），本机直跑改为 `8000`。仍是 `example.com` 时，请求会直接报「服务端地址尚未配置」，而不是笼统的网络错误。
 2. `server/.env` 由 `.env.example` 复制并填 `DB_*` / `WX_APPID` / `WX_SECRET` / `JWT_SECRET`；缺密钥服务启动即报错。
-3. 开发期在微信开发者工具「详情 → 本地设置」勾选「不校验合法域名」（`project.config.json` 默认 `urlCheck: true`）。
+3. 开发期在微信开发者工具「详情 → 本地设置」勾选「不校验合法域名」；仓库已在 `project.private.config.json` 关闭 `urlCheck`，真机预览/上线仍要求合法 HTTPS 域名。
 
-> `bash server/finish.sh` 的验证 6/6 会自动检查第 1、2 项是否遗漏，只提示不判失败。
+> `bash server/finish.sh` 的验证 6/8 会自动检查第 1、2 项是否遗漏，只提示不判失败。
 
 ## 上线前必做
 
 1. `server/.env` 配好 `DB_*` / `WX_APPID` / `WX_SECRET` / `JWT_SECRET`（密钥只在服务端）。
-2. `utils/config.js` 换成自己的 HTTPS 已备案域名；微信公众平台 → 开发管理 → 服务器域名 → 添加 **request 合法域名**。
-3. 全新安装执行 `python -m app.init_db`（15 张表）；存量库按顺序执行 `server/sql/migrate_p2_report_tasks.sql` → `server/sql/migrate_p3_analysis.sql` → `server/sql/migrate_p4_workspaces.sql` → `server/sql/migrate_p5_web_tickets.sql`（幂等，脚本末尾自带自检）。P4 回滚脚本 `migrate_p4_rollback.sql` 有损，执行前先备份；P5 回滚 `migrate_p5_rollback.sql` 只删登录票据表。用 Nginx 终止 TLS，gunicorn/systemd 托管进程。
+2. `utils/config.js` 的 `RELEASE_BASE` 换成自己的 HTTPS 已备案域名（`DEV_BASE` 仅开发期使用，不参与发布）；微信公众平台 → 开发管理 → 服务器域名 → 添加 **request 合法域名**。
+3. 全新安装执行 `python -m app.init_db`（18 张表）；存量库按顺序执行 `server/sql/migrate_p2_report_tasks.sql` → `server/sql/migrate_p3_analysis.sql` → `server/sql/migrate_p4_workspaces.sql` → `server/sql/migrate_p5_web_tickets.sql` → `server/sql/migrate_p6_notifications.sql` → `server/sql/migrate_p6_heartbeat.sql` → `server/sql/migrate_p7_notify_scope.sql` → `server/sql/migrate_p8_analysis_workspace.sql`（幂等，脚本末尾自带自检）。P4 回滚脚本 `migrate_p4_rollback.sql` 有损，执行前先备份；P5/P6 回滚只删本轮新增表；P7 回滚会重建更严格的旧唯一键，重复通知存在时会失败；P8 回滚只删分析任务的空间列，但会丢失历史归属快照。用 Nginx 终止 TLS，gunicorn/systemd 托管进程；调度由独立 `scheduler` 容器运行。
 4. Web 后台设置 `WEB_ORIGIN=https://admin.modouyu.top` 与 `VITE_API_BASE=https://api.modouyu.top`，构建 `web/dist` 后部署到独立子域；小程序需包含 `pages/login-confirm/login-confirm`。
 5. 真机预览与上线必须完成第 2 步；IP / localhost 在真机不可用。
-6. `bash server/finish.sh` 的 6 项验证全绿，并按 [`docs/DEVELOPMENT.md` §16](docs/DEVELOPMENT.md) 的真机联调清单逐项走通。
+6. `bash server/finish.sh` 的 8 项验证全绿，并按 [`docs/DEVELOPMENT.md` §16](docs/DEVELOPMENT.md) 的真机联调清单逐项走通。
 
 ## 开发约定（摘要）
 
@@ -115,4 +121,4 @@ bash server/finish.sh
 | 过时规则 | `rules/`、`codebuddy-plugin/` | 已删除（整目录） |
 | **保留并改写** | `CODEBUDDY.md` | 已从 CloudBase 规则改写为**自有服务端开发约定**，是防止后续开发跑偏的关键入口，**勿删** |
 
-`bash server/finish.sh` 现在是**纯验证脚本**，不再删除任何文件，只跑 6 项静态检查：依赖预检、`compileall`、`pytest`（含 action 契约对账）、`node --check`、残留引用/旧名称/死字段检索、首次启动配置自检。
+`bash server/finish.sh` 现在是**纯验证脚本**，不再删除任何文件，只跑 8 项验证：依赖预检、`compileall`、`pytest`（含 action 契约对账）、`node --check`、残留引用/旧名称/死字段检索、首次启动配置自检、`ruff` + `mypy`（未安装开发依赖时跳过并提示）、Web 工作台 `vitest`（未执行 `npm ci` 时跳过并提示）。

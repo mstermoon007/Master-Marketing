@@ -8,8 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from app.handlers import BusinessError
-from app.handlers import common
+from app.handlers import BusinessError, common
 from app.services import org
 
 SQL_DIR = Path(__file__).resolve().parent.parent / "sql"

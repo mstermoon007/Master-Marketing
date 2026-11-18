@@ -19,6 +19,10 @@ def _opt(name: str, default: str) -> str:
     return os.environ.get(name, default).strip() or default
 
 
+def _flag(name: str, default: str = "1") -> bool:
+    return _opt(name, default).strip().lower() not in ("0", "false", "no", "off")
+
+
 DB_HOST = _opt("DB_HOST", "127.0.0.1")
 DB_PORT = int(_opt("DB_PORT", "3306"))
 DB_USER = _opt("DB_USER", "root")
@@ -36,6 +40,21 @@ JWT_TTL_DAYS = int(_opt("JWT_TTL_DAYS", "30"))
 WEB_ORIGIN = _opt("WEB_ORIGIN", "https://admin.modouyu.top")
 WEB_TOKEN_TTL_HOURS = int(_opt("WEB_TOKEN_TTL_HOURS", "12"))
 
+# ---- 消息通知（P6）----
+# 四类微信订阅消息模板 ID：留空时只写通知记录（status=skipped），不调用微信。
+# 模板字段约定见 .env.example（thing1 / thing2 / date3 / number4）。
+WX_TMPL_DAILY_REMIND = _opt("WX_TMPL_DAILY_REMIND", "")
+WX_TMPL_DUE_REMIND = _opt("WX_TMPL_DUE_REMIND", "")
+WX_TMPL_MISSING_REMIND = _opt("WX_TMPL_MISSING_REMIND", "")
+WX_TMPL_ANOMALY_ALERT = _opt("WX_TMPL_ANOMALY_ALERT", "")
+
+# 应用内调度（APScheduler）：多 worker 同时运行时靠通知去重唯一键兜底。
+SCHEDULER_ENABLED = _flag("SCHEDULER_ENABLED", "1")
+SCHEDULER_TZ = _opt("SCHEDULER_TZ", "Asia/Shanghai")
+DAILY_REMIND_TIME = _opt("DAILY_REMIND_TIME", "09:00")
+MISSING_REMIND_TIME = _opt("MISSING_REMIND_TIME", "20:00")
+REMIND_BEFORE_MINUTES = int(_opt("REMIND_BEFORE_MINUTES", "30"))
+
 PORT = int(_opt("PORT", "8000"))
 
 
@@ -43,4 +62,9 @@ def require_runtime_secrets() -> None:
     """启动时校验关键密钥，避免带着空 AppSecret / 空签名密钥上线。"""
     _req("WX_APPID")
     _req("WX_SECRET")
-    _req("JWT_SECRET")
+    secret = _req("JWT_SECRET")
+    if len(secret) < 32:
+        raise RuntimeError(
+            "JWT_SECRET 至少 32 个字符（HS256 建议 256 位随机值）；"
+            "生成命令：python3 -c \"import secrets;print(secrets.token_urlsafe(48))\""
+        )

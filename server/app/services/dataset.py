@@ -6,7 +6,8 @@
 - 口径：应提交人一律走 services.expected，禁止在这里重新解释 scope / 工作日 / 停用；
 - 输出为纯数据结构，交给 metrics / rules / report 做确定性计算。
 """
-from datetime import date as date_cls, timedelta
+from datetime import date as date_cls
+from datetime import timedelta
 
 from .. import db
 from . import expected, metrics

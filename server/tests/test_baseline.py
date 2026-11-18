@@ -91,14 +91,14 @@ def test_code2session_network_error_is_friendly(monkeypatch):
 def test_token_carries_unionid_only_when_present(monkeypatch):
     import jwt as pyjwt
 
-    monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret")
+    monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret-0123456789abcdef")
     plain = pyjwt.decode(
-        auth.issue_token("o-1"), "unit-test-secret",
+        auth.issue_token("o-1"), config.JWT_SECRET,
         algorithms=[auth.JWT_ALG], issuer=auth.JWT_ISS, audience="mini",
     )
     assert "unionid" not in plain
     bound = pyjwt.decode(
-        auth.issue_token("o-1", "u-1"), "unit-test-secret",
+        auth.issue_token("o-1", "u-1"), config.JWT_SECRET,
         algorithms=[auth.JWT_ALG], issuer=auth.JWT_ISS, audience="mini",
     )
     assert bound["unionid"] == "u-1"
@@ -325,7 +325,7 @@ EXPECTED_COLUMNS = {
     "analysis_rules": ["id", "rule_code", "version", "name", "level",
                        "condition_text", "description", "params", "status",
                        "created_at"],
-    "analysis_tasks": ["id", "team_id", "analysis_type", "period_start",
+    "analysis_tasks": ["id", "team_id", "workspace_id", "analysis_type", "period_start",
                        "period_end", "scope", "status", "metric_version",
                        "rule_version", "request_by", "error_message",
                        "retry_count", "created_at", "started_at", "finished_at"],
@@ -367,6 +367,7 @@ EXPECTED_KEYS = (
     "uk_result_task",
     "uk_finding_task_code",
     "idx_analysis_team_time",
+    "idx_analysis_ws_time",
     "idx_result_team_time",
     "idx_finding_task",
 )

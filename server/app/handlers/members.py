@@ -8,8 +8,7 @@ P4：
 """
 from .. import db
 from ..services import org
-from .common import (BusinessError, audit, find_member_by_uid, require_manager,
-                     team_access)
+from .common import BusinessError, audit, find_member_by_uid, require_manager, team_access
 
 
 def _augment(conn, member):
