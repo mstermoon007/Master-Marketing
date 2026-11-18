@@ -94,12 +94,12 @@ def test_token_carries_unionid_only_when_present(monkeypatch):
     monkeypatch.setattr(config, "JWT_SECRET", "unit-test-secret")
     plain = pyjwt.decode(
         auth.issue_token("o-1"), "unit-test-secret",
-        algorithms=[auth.JWT_ALG], issuer=auth.JWT_ISS,
+        algorithms=[auth.JWT_ALG], issuer=auth.JWT_ISS, audience="mini",
     )
     assert "unionid" not in plain
     bound = pyjwt.decode(
         auth.issue_token("o-1", "u-1"), "unit-test-secret",
-        algorithms=[auth.JWT_ALG], issuer=auth.JWT_ISS,
+        algorithms=[auth.JWT_ALG], issuer=auth.JWT_ISS, audience="mini",
     )
     assert bound["unionid"] == "u-1"
     assert bound["sub"] == "o-1"
@@ -107,12 +107,19 @@ def test_token_carries_unionid_only_when_present(monkeypatch):
 
 # ---------------------------------------------------------------- 团队创建
 
-def _patch_team_deps(monkeypatch, tm, existing_member=None, team_lookup=None,
+def _patch_team_deps(monkeypatch, tm, team_lookup=None,
                      inserted=None, audited=None):
     inserted = inserted if inserted is not None else []
     audited = audited if audited is not None else []
-    monkeypatch.setattr(tm, "find_member_by_uid", lambda *a, **k: existing_member)
     monkeypatch.setattr(tm, "find_team_by_id", team_lookup or (lambda *a, **k: None))
+    monkeypatch.setattr(
+        tm.org, "create_workspace_record",
+        lambda conn, uid, name, member_name, workspace_code=None: {
+            "workspace": {"id": "ws-%s" % workspace_code, "workspace_code": workspace_code,
+                          "name": name, "owner_uid": uid, "config": {}, "created_at": "x"},
+        },
+    )
+    monkeypatch.setattr(tm.org, "ensure_workspace_member", lambda *a, **k: {})
     monkeypatch.setattr(tm.db, "now_iso", lambda: "2026-11-14T00:00:00.000Z")
     monkeypatch.setattr(
         tm.db, "insert",
@@ -134,6 +141,7 @@ def test_create_team_normal_path(monkeypatch):
     assert re.fullmatch(r"T[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}", team["team_id"])
     assert team["owner_uid"] == "o-owner"
     assert team["config"] == {"memberSeeTeamTotal": False}
+    assert team["workspace_id"] == "ws-W" + team["team_id"]
 
     member = inserted[1][1]
     assert member["role"] == "owner"
@@ -194,7 +202,10 @@ def _entry_payload(status="submitted", **over):
 def _patch_entry_deps(monkeypatch, en, existing=None):
     calls = {"insert": [], "update": [], "audit": []}
     monkeypatch.setattr(en, "_check_entry_date", lambda d: d)
-    monkeypatch.setattr(en, "require_member", lambda *a, **k: {"role": "member"})
+    monkeypatch.setattr(en, "require_writer", lambda *a, **k: {
+        "user_id": "o-1", "team_id": "T1", "workspace_id": "ws-1",
+        "effective_role": "member", "is_team_member": True,
+    })
     monkeypatch.setattr(en, "_template_fields", lambda *a, **k: [])
     monkeypatch.setattr(en, "_validate_rows", lambda *a, **k: None)
     monkeypatch.setattr(en, "_entry", lambda *a, **k: existing)
@@ -264,7 +275,7 @@ def test_save_entry_rejects_cross_team_write(monkeypatch):
         raise BusinessError("你不是该团队成员或已被停用")
 
     monkeypatch.setattr(en, "_check_entry_date", lambda d: d)
-    monkeypatch.setattr(en, "require_member", deny)
+    monkeypatch.setattr(en, "require_writer", deny)
     with pytest.raises(BusinessError, match="不是该团队成员"):
         en.save_entry(None, "o-1", _entry_payload())
 
@@ -280,25 +291,34 @@ def test_save_entry_requires_team_and_date(monkeypatch):
 
 # ---------------------------------------------------------------- 库结构快照
 
-EXPECTED_TABLES = ("teams", "members", "form_templates", "daily_entries",
+EXPECTED_TABLES = ("workspaces", "departments", "workspace_members",
+                   "teams", "members", "form_templates", "daily_entries",
                    "report_tasks", "audit_logs", "analysis_metrics",
                    "analysis_rules", "analysis_tasks", "analysis_results",
                    "analysis_findings")
 
 EXPECTED_COLUMNS = {
-    "teams": ["id", "team_id", "name", "owner_uid", "config", "created_at"],
-    "members": ["id", "team_id", "user_id", "name", "role", "status", "joined_at"],
-    "form_templates": ["id", "team_id", "template_id", "version", "name", "description",
-                       "entry_mode", "status", "fields", "scope", "effective_from",
-                       "created_by", "created_at", "published_by", "published_at"],
-    "daily_entries": ["id", "team_id", "user_id", "entry_date", "template_id",
-                      "template_version", "form_data", "status", "source",
+    "workspaces": ["id", "workspace_code", "name", "owner_uid", "config", "created_at"],
+    "departments": ["id", "workspace_id", "parent_id", "parent_key", "name",
+                    "depth", "leader_uid", "status", "created_at"],
+    "workspace_members": ["id", "workspace_id", "user_id", "name", "role",
+                          "status", "joined_at"],
+    "teams": ["id", "team_id", "workspace_id", "department_id", "name",
+              "owner_uid", "config", "created_at"],
+    "members": ["id", "team_id", "user_id", "name", "role", "status",
+                "department_id", "left_at", "joined_at"],
+    "form_templates": ["id", "team_id", "workspace_id", "template_id", "version", "name",
+                       "description", "entry_mode", "status", "fields", "scope",
+                       "effective_from", "created_by", "created_at", "published_by",
+                       "published_at"],
+    "daily_entries": ["id", "team_id", "workspace_id", "user_id", "entry_date",
+                      "template_id", "template_version", "form_data", "status", "source",
                       "created_at", "updated_at"],
-    "report_tasks": ["id", "team_id", "task_key", "title", "template_id",
+    "report_tasks": ["id", "team_id", "workspace_id", "task_key", "title", "template_id",
                      "template_version", "scope", "start_date", "end_date",
                      "due_time", "workdays_only", "status", "created_by",
                      "created_at", "closed_at"],
-    "audit_logs": ["id", "team_id", "actor", "action", "target_type",
+    "audit_logs": ["id", "team_id", "workspace_id", "actor", "action", "target_type",
                    "target_id", "detail", "created_at"],
     "analysis_metrics": ["id", "metric_code", "version", "name", "category",
                          "unit", "formula", "description", "status", "created_at"],
@@ -319,18 +339,28 @@ EXPECTED_COLUMNS = {
 }
 
 EXPECTED_KEYS = (
+    "uk_workspaces_code",
+    "uk_dept_ws_parent_name",
+    "idx_dept_ws_parent",
+    "uk_ws_member",
+    "idx_ws_member_user",
     "uk_teams_team_id",
     "uk_members_team_user",
     "uk_tpl_team_id_ver",
     "uk_entry_team_user_date",
     "idx_members_user",
     "idx_members_team",
+    "idx_teams_workspace",
     "idx_tpl_team_status",
+    "idx_tpl_workspace",
     "idx_entry_team_date",
     "idx_entry_team_user_date",
+    "idx_entry_workspace_date",
     "uk_task_team_key",
     "idx_task_team_status",
+    "idx_task_workspace_status",
     "idx_audit_team_time",
+    "idx_audit_workspace_time",
     "uk_metric_code_ver",
     "uk_rule_code_ver",
     "uk_analysis_idem",

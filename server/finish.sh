@@ -121,5 +121,5 @@ if [ "$FAIL" -eq 0 ]; then
 else
   echo "=== 完成：存在失败项，见上方 ↑ ==="
 fi
-echo "部署迁移：server/sql/migrate_p2_report_tasks.sql → server/sql/migrate_p3_analysis.sql"
+echo "部署迁移：server/sql/migrate_p2_report_tasks.sql → server/sql/migrate_p3_analysis.sql → server/sql/migrate_p4_workspaces.sql → server/sql/migrate_p5_web_tickets.sql"
 exit "$FAIL"

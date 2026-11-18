@@ -1,13 +1,30 @@
 const session = require('../../utils/session')
 const store = require('../../utils/store')
 
+const ROLE_TEXT = {
+  owner: '负责人',
+  admin: '空间管理员',
+  manager: '管理员',
+  viewer: '只读',
+  member: '成员',
+}
+
+function roleText(member) {
+  if (!member) return ''
+  return ROLE_TEXT[member.effective_role || member.role] || '成员'
+}
+
 Page({
   data: {
     authState: 'checking',
     signedIn: false,
     member: null,
     team: null,
+    workspace: null,
+    workspaceRole: '',
+    roleText: '',
     isManager: false,
+    isOwner: false,
     memberSeeTeamTotal: false,
     inviteCode: '',
     errorText: '',
@@ -26,9 +43,14 @@ Page({
         signedIn: true,
         member: ctx.member,
         team: ctx.team,
+        workspace: ctx.workspace || null,
+        workspaceRole: ctx.workspaceRole || '',
+        roleText: roleText(ctx.member),
         isManager: session.isManager(ctx.member),
+        isOwner: !!ctx.member && (ctx.member.effective_role || ctx.member.role) === 'owner',
         inviteCode: ctx.team ? ctx.team.team_id : '',
         memberSeeTeamTotal: ctx.team && ctx.team.config ? !!ctx.team.config.memberSeeTeamTotal : false,
+        errorText: '',
       })
     } catch (e) {
       // 保留登录态，停用成员仍能看到「退出登录」；同时展示明确原因
@@ -54,6 +76,11 @@ Page({
     const checked = e.detail.value
     try {
       const ctx = await session.loadContext()
+      if (!ctx.team) {
+        wx.showToast({ title: '请先选择团队', icon: 'none' })
+        this.setData({ memberSeeTeamTotal: !checked })
+        return
+      }
       const config = Object.assign({}, (ctx.team && ctx.team.config) || {}, { memberSeeTeamTotal: checked })
       await store.updateTeamConfig(ctx.team.team_id, config)
       ctx.team.config = config

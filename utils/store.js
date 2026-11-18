@@ -5,8 +5,14 @@ const { callApi } = require('./http')
 
 // ---------- 团队 ----------
 // 真实身份由服务端验签 JWT 得出，客户端不传 uid
-async function createTeam(name, memberName) {
-  return callApi('createTeam', { name: name, memberName: memberName })
+// workspaceId / departmentId 可选：不传则服务端自动创建「团队名 工作空间」
+async function createTeam(name, memberName, workspaceId, departmentId) {
+  return callApi('createTeam', {
+    name: name,
+    memberName: memberName,
+    workspaceId: workspaceId || '',
+    departmentId: departmentId || '',
+  })
 }
 
 async function findTeamByCode(code) {
@@ -26,8 +32,9 @@ async function updateTeamConfig(teamId, config) {
 }
 
 // ---------- 成员 ----------
-async function getMyMember() {
-  return callApi('getMyMember')
+// teamId 可选：一人多空间时用于定位当前团队下的成员行
+async function getMyMember(teamId) {
+  return callApi('getMyMember', teamId ? { teamId: teamId } : {})
 }
 
 async function listMembers(teamId) {
@@ -174,6 +181,65 @@ async function getAnalysisOverview(teamId) {
   return callApi('getAnalysisOverview', { teamId: teamId })
 }
 
+// ---------- 工作空间与部门（P4）----------
+// 一人可属多个空间；切换与列表统一走服务端校验，跨空间访问会被拒绝。
+async function listMyWorkspaces() {
+  return callApi('listMyWorkspaces')
+}
+
+// params: { teamId } 或 { workspaceId }；都不传时返回默认空间
+async function switchWorkspace(params) {
+  return callApi('switchWorkspace', params || {})
+}
+
+// ---------- Web 扫码登录（P5）----------
+// 仅在空间所有者的微信里调用；ticket 为 Web 端生成的一次性 32 位 hex
+async function confirmWebLogin(ticket) {
+  return callApi('confirmWebLogin', { ticket: ticket })
+}
+
+async function createWorkspace(name, memberName, teamName) {
+  return callApi('createWorkspace', {
+    name: name,
+    memberName: memberName,
+    teamName: teamName || '',
+  })
+}
+
+async function updateWorkspace(workspaceId, patch) {
+  return callApi('updateWorkspace', Object.assign({ workspaceId: workspaceId }, patch || {}))
+}
+
+async function listWorkspaceMembers(workspaceId) {
+  return callApi('listWorkspaceMembers', { workspaceId: workspaceId })
+}
+
+async function updateWorkspaceMember(workspaceId, id, patch) {
+  return callApi('updateWorkspaceMember', {
+    workspaceId: workspaceId,
+    id: id,
+    patch: patch || {},
+  })
+}
+
+async function listDepartments(workspaceId) {
+  return callApi('listDepartments', { workspaceId: workspaceId })
+}
+
+async function createDepartment(workspaceId, name, parentId, leaderUid) {
+  return callApi('createDepartment', {
+    workspaceId: workspaceId,
+    name: name,
+    parentId: parentId || '',
+    leaderUid: leaderUid || '',
+  })
+}
+
+async function updateDepartment(workspaceId, id, patch) {
+  return callApi('updateDepartment',
+    Object.assign({ workspaceId: workspaceId, id: id }, patch || {}))
+}
+
 // ---------- 录入 ----------
 async function getMyEntry(teamId, date) {
   return callApi('getMyEntry', { teamId: teamId, date: date })
@@ -259,6 +325,16 @@ module.exports = {
   getAnalysisTask,
   listAnalysisFindings,
   getAnalysisOverview,
+  listMyWorkspaces,
+  switchWorkspace,
+  confirmWebLogin,
+  createWorkspace,
+  updateWorkspace,
+  listWorkspaceMembers,
+  updateWorkspaceMember,
+  listDepartments,
+  createDepartment,
+  updateDepartment,
   getMyEntry,
   saveEntry,
   listMyEntries,

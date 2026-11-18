@@ -33,6 +33,18 @@ P3_ACTIONS = {
     "listAnalysisFindings", "getAnalysisOverview",
 }
 
+# P4 新增的 9 个组织与多工作空间 action
+P4_ACTIONS = {
+    "listMyWorkspaces", "switchWorkspace", "createWorkspace", "updateWorkspace",
+    "listWorkspaceMembers", "updateWorkspaceMember",
+    "listDepartments", "createDepartment", "updateDepartment",
+}
+
+# P5 新增的 3 个 Web 管理后台 action
+P5_ACTIONS = {
+    "confirmWebLogin", "getWorkspaceOverview", "listAuditLogs",
+}
+
 # listEntriesByUser 在旧云函数中零调用，审阅确认为死分支，本次清理未迁移
 REMOVED_DEAD_ACTIONS = {"listEntriesByUser"}
 
@@ -42,9 +54,10 @@ def test_all_legacy_actions_migrated():
     assert not (REMOVED_DEAD_ACTIONS & set(HANDLERS))
 
 
-def test_p2_actions_registered():
-    assert set(HANDLERS) == LEGACY_ACTIONS | P2_ACTIONS | P3_ACTIONS
-    assert len(HANDLERS) == 35
+def test_all_actions_registered():
+    assert set(HANDLERS) == (LEGACY_ACTIONS | P2_ACTIONS | P3_ACTIONS
+                             | P4_ACTIONS | P5_ACTIONS)
+    assert len(HANDLERS) == 47
 
 
 def test_unknown_action_raises_business_error():
@@ -90,24 +103,28 @@ def test_string_ids_match_legacy_oid_shape():
 
 def test_json_column_mapping_covers_all_tables():
     assert set(db.JSON_COLUMNS) == {
+        "workspaces", "departments", "workspace_members",
         "teams", "members", "form_templates", "daily_entries", "audit_logs",
         "report_tasks", "analysis_metrics", "analysis_rules", "analysis_tasks",
-        "analysis_results", "analysis_findings",
+        "analysis_results", "analysis_findings", "web_login_tickets",
     }
+    assert db.JSON_COLUMNS["workspaces"] == ["config"]
     assert "form_data" in db.JSON_COLUMNS["daily_entries"]
     assert "fields" in db.JSON_COLUMNS["form_templates"]
     assert db.JSON_COLUMNS["report_tasks"] == ["scope"]
     assert db.JSON_COLUMNS["analysis_rules"] == ["params"]
     assert db.JSON_COLUMNS["analysis_results"] == ["summary", "data_quality"]
+    assert db.JSON_COLUMNS["web_login_tickets"] == ["workspace_ids"]
 
 
 def test_schema_has_required_unique_keys():
     sql = (Path(__file__).resolve().parent.parent / "sql" / "schema.sql").read_text("utf-8")
     for key in (
+        "uk_workspaces_code", "uk_dept_ws_parent_name", "uk_ws_member",
         "uk_teams_team_id", "uk_members_team_user",
         "uk_tpl_team_id_ver", "uk_entry_team_user_date", "uk_task_team_key",
         "uk_metric_code_ver", "uk_rule_code_ver", "uk_analysis_idem",
-        "uk_result_task", "uk_finding_task_code",
+        "uk_result_task", "uk_finding_task_code", "uk_web_ticket",
     ):
         assert key in sql
 
@@ -188,22 +205,48 @@ def test_publish_keeps_draft_effective_date(monkeypatch):
     assert updates[0][1]["effective_from"] == "2026-12-01"
 
 
-def test_create_team_blocks_second_team(monkeypatch):
-    """已有团队的成员不能创建第二个团队（否则 getMyMember 上下文随机）。"""
+def test_create_team_allows_second_workspace(monkeypatch):
+    """P4 起一人可属多空间：创建第二个团队不再被拦截，且各自落在独立空间。"""
     from app.handlers import teams as tm
-    monkeypatch.setattr(tm, "find_member_by_uid", lambda *a, **k: {"team_id": "T1"})
-    with pytest.raises(BusinessError, match="多个团队"):
-        tm.create_team(None, "openid-x", {"name": "第二个团队", "memberName": "张三"})
+    created = []
+
+    monkeypatch.setattr(tm, "_pick_team_code", lambda conn: "TAAAAAA")
+    monkeypatch.setattr(tm.org, "create_workspace_record",
+                        lambda conn, uid, name, member_name, workspace_code=None: {
+                            "workspace": {"id": "ws-%s" % workspace_code,
+                                          "workspace_code": workspace_code,
+                                          "name": name, "owner_uid": uid,
+                                          "config": {}, "created_at": "x"}})
+    monkeypatch.setattr(tm.org, "ensure_workspace_member", lambda *a, **k: {})
+    monkeypatch.setattr(tm.db, "now_iso", lambda: "2026-11-14T00:00:00.000Z")
+    monkeypatch.setattr(tm.db, "insert",
+                        lambda conn, table, data: created.append((table, data)) or "id-1")
+    monkeypatch.setattr(tm, "audit", lambda *a, **k: None)
+
+    result = tm.create_team(None, "openid-x", {"name": "第二个团队", "memberName": "张三"})
+    assert result["team"]["workspace_id"] == "ws-WTAAAAAA"
+    assert [t for t, _ in created] == ["teams", "members"]
 
 
-def test_join_team_blocks_other_team(monkeypatch):
-    """已在 A 队的用户不能用邀请码加入 B 队。"""
+def test_join_team_allows_second_workspace(monkeypatch):
+    """已在 A 队的用户可加入 B 队，并自动补 B 空间成员。"""
     from app.handlers import teams as tm
-    monkeypatch.setattr(tm, "find_team_by_id", lambda *a, **k: {"team_id": "T2", "name": "B队"})
+    joined = {}
+    monkeypatch.setattr(tm, "find_team_by_id",
+                        lambda *a, **k: {"team_id": "T2", "name": "B队",
+                                         "workspace_id": "ws-B", "department_id": None})
     monkeypatch.setattr(tm.db, "one", lambda *a, **k: None)
-    monkeypatch.setattr(tm, "find_member_by_uid", lambda *a, **k: {"team_id": "T1"})
-    with pytest.raises(BusinessError, match="多个团队"):
-        tm.join_team(None, "openid-x", {"teamId": "T2", "memberName": "张三"})
+    monkeypatch.setattr(tm.db, "now_iso", lambda: "2026-11-14T00:00:00.000Z")
+    monkeypatch.setattr(tm.db, "insert", lambda *a, **k: "m-2")
+    monkeypatch.setattr(tm, "audit", lambda *a, **k: None)
+    monkeypatch.setattr(
+        tm.org, "ensure_workspace_member",
+        lambda conn, ws, uid, name, role="member": joined.update(
+            {"workspace_id": ws, "user_id": uid, "role": role}))
+
+    result = tm.join_team(None, "openid-x", {"teamId": "T2", "memberName": "张三"})
+    assert result["team_id"] == "T2"
+    assert joined == {"workspace_id": "ws-B", "user_id": "openid-x", "role": "member"}
 
 
 def test_disabled_member_gets_clear_error(monkeypatch):
@@ -238,7 +281,8 @@ def test_list_team_entries_pagination_and_stable_order(monkeypatch):
     """分页参数生效、排序稳定，且非法 page/pageSize 被夹到安全范围。"""
     from app.handlers import entries as en
     captured = {}
-    monkeypatch.setattr(en, "require_manager", lambda *a, **k: {"user_id": "u1"})
+    monkeypatch.setattr(en, "require_manager",
+                        lambda *a, **k: {"user_id": "u1", "team_id": "T1"})
 
     def fake_query(conn, sql, args=None):
         captured["sql"] = sql

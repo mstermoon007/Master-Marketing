@@ -12,6 +12,8 @@ $RECYCLE.BIN/
 
 # Node.js
 node_modules/
+web/dist/
+web/.env.local
 
 # Python / 服务端
 server/.env

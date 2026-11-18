@@ -21,6 +21,9 @@ from . import config
 
 # 表名 -> 需要反序列化的 JSON 列
 JSON_COLUMNS: Dict[str, List[str]] = {
+    "workspaces": ["config"],
+    "departments": [],
+    "workspace_members": [],
     "teams": ["config"],
     "members": [],
     "form_templates": ["fields", "scope"],
@@ -32,6 +35,7 @@ JSON_COLUMNS: Dict[str, List[str]] = {
     "analysis_tasks": ["scope"],
     "analysis_results": ["summary", "data_quality"],
     "analysis_findings": ["detail", "data_refs"],
+    "web_login_tickets": ["workspace_ids"],
 }
 
 

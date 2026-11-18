@@ -19,7 +19,7 @@ _MEMBER_STATUS_TEXT = {
     "backfilled": "已补录",
     "closed": "已关闭",
 }
-_ROLE_NAMES = {"owner": "负责人", "manager": "管理员", "member": "成员"}
+_ROLE_NAMES = {"owner": "负责人", "manager": "管理员", "member": "成员", "viewer": "只读"}
 _MAX_TASK_DAYS = 366
 _DUE_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
@@ -99,11 +99,14 @@ def _decorate(row, template_name=""):
     return out
 
 
-def _resolve_template(conn, team_id, template_id, version):
+def _resolve_template(conn, team_id, template_id, version, workspace_id=None):
     if not template_id:
         raise BusinessError("请选择填报模板")
     sql = "SELECT * FROM `form_templates` WHERE team_id = %s AND template_id = %s"
     args = [team_id, template_id]
+    if workspace_id:
+        sql += " AND workspace_id = %s"
+        args.append(workspace_id)
     if version not in (None, ""):
         try:
             args.append(int(version))
@@ -230,12 +233,14 @@ def create_report_task(conn, uid, p):
             raise BusinessError("截止时间格式应为 HH:MM")
 
     template = _resolve_template(
-        conn, team_id, payload.get("template_id"), payload.get("template_version")
+        conn, team_id, payload.get("template_id"), payload.get("template_version"),
+        me.get("workspace_id"),
     )
     scope = _normalize_scope(payload.get("scope") or template.get("scope"))
 
     task = {
         "team_id": team_id,
+        "workspace_id": me.get("workspace_id"),
         "task_key": "tk_" + db.gen_id()[:12],
         "title": title,
         "template_id": template["template_id"],
@@ -246,7 +251,7 @@ def create_report_task(conn, uid, p):
         "due_time": due_time,
         "workdays_only": 1 if _as_bool(payload.get("workdays_only")) else 0,
         "status": "active",
-        "created_by": me.get("user_id"),
+        "created_by": uid,
         "created_at": db.now_iso(),
     }
     new_id = db.insert(conn, "report_tasks", task)
@@ -257,16 +262,19 @@ def create_report_task(conn, uid, p):
         "startDate": start_date,
         "endDate": end_date,
         "scope": scope,
-    })
+    }, workspace_id=me.get("workspace_id"))
     return _decorate(dict(task, id=new_id), template.get("name") or "")
 
 
 def list_report_tasks(conn, uid, p):
     team_id = _team_id(p)
-    require_manager(conn, uid, team_id)
+    ctx = require_manager(conn, uid, team_id)
     status = p.get("status")
     sql = "SELECT * FROM `report_tasks` WHERE team_id = %s"
     args = [team_id]
+    if ctx.get("workspace_id"):
+        sql += " AND workspace_id = %s"
+        args.append(ctx["workspace_id"])
     if status in ("active", "closed"):
         sql += " AND status = %s"
         args.append(status)
@@ -298,7 +306,7 @@ def close_report_task(conn, uid, p):
     row = db.get_doc(conn, "report_tasks", p.get("id"))
     if not row:
         raise BusinessError("任务不存在")
-    require_manager(conn, uid, row["team_id"])
+    ctx = require_manager(conn, uid, row["team_id"])
     maps = _template_name_map(conn, row["team_id"])
     name = _template_name(maps, row.get("template_id"), row.get("template_version"))
     if row.get("status") == "closed":
@@ -306,7 +314,7 @@ def close_report_task(conn, uid, p):
     now = db.now_iso()
     db.update(conn, "report_tasks", p.get("id"), {"status": "closed", "closed_at": now})
     audit(conn, uid, row["team_id"], "task_close", "report_tasks", p.get("id"),
-          {"title": row.get("title")})
+          {"title": row.get("title")}, workspace_id=ctx.get("workspace_id"))
     return _decorate(dict(row, status="closed", closed_at=now), name)
 
 

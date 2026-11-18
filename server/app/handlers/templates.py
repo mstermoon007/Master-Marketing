@@ -28,24 +28,26 @@ def _clean_patch(patch, allowed):
 
 
 def list_templates(conn, uid, p):
-    require_member(conn, uid, p.get("teamId"))
-    rows = db.query(
-        conn,
-        "SELECT * FROM `form_templates` WHERE team_id = %s "
-        "ORDER BY template_id ASC, version DESC LIMIT 1000",
-        (p.get("teamId"),),
-    )
+    ctx = require_member(conn, uid, p.get("teamId"))
+    sql = "SELECT * FROM `form_templates` WHERE team_id = %s "
+    args = [ctx["team_id"]]
+    if ctx.get("workspace_id"):
+        sql += "AND workspace_id = %s "
+        args.append(ctx["workspace_id"])
+    sql += "ORDER BY template_id ASC, version DESC LIMIT 1000"
+    rows = db.query(conn, sql, tuple(args))
     return db.rows_to_dicts(rows, "form_templates")
 
 
 def list_published_templates(conn, uid, p):
-    require_member(conn, uid, p.get("teamId"))
-    rows = db.query(
-        conn,
-        "SELECT * FROM `form_templates` WHERE team_id = %s AND status = 'published' "
-        "ORDER BY version DESC LIMIT 1000",
-        (p.get("teamId"),),
-    )
+    ctx = require_member(conn, uid, p.get("teamId"))
+    sql = "SELECT * FROM `form_templates` WHERE team_id = %s AND status = 'published' "
+    args = [ctx["team_id"]]
+    if ctx.get("workspace_id"):
+        sql += "AND workspace_id = %s "
+        args.append(ctx["workspace_id"])
+    sql += "ORDER BY version DESC LIMIT 1000"
+    rows = db.query(conn, sql, tuple(args))
     return db.rows_to_dicts(rows, "form_templates")
 
 
@@ -72,7 +74,8 @@ def create_draft(conn, uid, p):
     me = require_manager(conn, uid, team_id)
 
     data = _clean_patch(payload, _DRAFT_COLUMNS)
-    data["created_by"] = me["user_id"]
+    data["created_by"] = uid
+    data["workspace_id"] = me.get("workspace_id")
     data["created_at"] = db.now_iso()
     # 草稿只能以 draft 创建，发布必须走 publishTemplate（防止绕过归档/审计）
     data["status"] = "draft"
@@ -80,7 +83,8 @@ def create_draft(conn, uid, p):
     data["scope"] = data.get("scope") or {"type": "all"}
     new_id = db.insert(conn, "form_templates", data)
     audit(conn, uid, team_id, "template_create", "form_templates",
-          data.get("template_id"), {"name": data.get("name"), "version": data.get("version")})
+          data.get("template_id"), {"name": data.get("name"), "version": data.get("version")},
+          workspace_id=me.get("workspace_id"))
     return dict(data, id=new_id)
 
 
@@ -179,7 +183,8 @@ def publish_template(conn, uid, p):
         "status": "published",
         "version": version,
         "effective_from": today,
-        "published_by": me["user_id"],
+        "workspace_id": me.get("workspace_id"),
+        "published_by": uid,
         "published_at": now,
     })
 
@@ -199,10 +204,10 @@ def publish_template(conn, uid, p):
               "fields": row.get("fields"),
               "scope": row.get("scope"),
               "effectiveFrom": today,
-              "by": me["user_id"],
-          })
+              "by": uid,
+          }, workspace_id=me.get("workspace_id"))
     return dict(row, version=version, status="published", effective_from=today,
-                published_by=me["user_id"], published_at=now)
+                published_by=uid, published_at=now)
 
 
 HANDLERS = {

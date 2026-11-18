@@ -14,12 +14,27 @@
     <view class="card">
       <view class="me-name">{{member ? member.name : ''}}</view>
       <view class="me-role">
-        <text class="tag tag-brand">{{member && member.role === 'owner' ? '负责人' : (member && member.role === 'manager' ? '管理员' : '成员')}}</text>
+        <text class="tag tag-brand">{{roleText}}</text>
         <text class="sub" wx:if="{{team}}">{{team.name}}</text>
       </view>
       <view class="invite-line" wx:if="{{team}}">
         <text class="weak">邀请码：{{inviteCode}}</text>
         <text class="tag tag-gray" bindtap="copyInvite">复制</text>
+      </view>
+    </view>
+
+    <!-- 当前工作空间与切换入口 -->
+    <view class="card" wx:if="{{workspace}}">
+      <view class="menu-item" bindtap="goTeamPage">
+        <view>
+          <text>当前空间：{{workspace.name}}</text>
+          <view class="weak">团队：{{team ? team.name : '未选择团队'}}</view>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-item" bindtap="goTeamPage">
+        <text>切换工作空间 / 团队</text>
+        <text class="menu-arrow">›</text>
       </view>
     </view>
 
@@ -32,16 +47,16 @@
       <view class="menu-item" bindtap="goMembers"><text>成员管理</text><text class="menu-arrow">›</text></view>
     </view>
 
-    <!-- 团队配置（owner） -->
-    <view class="card" wx:if="{{member && member.role === 'owner'}}">
+    <!-- 团队配置（负责人） -->
+    <view class="card" wx:if="{{isOwner && team}}">
       <view class="menu-item">
         <text>普通成员可见团队汇总</text>
         <switch checked="{{memberSeeTeamTotal}}" bindchange="toggleTeamTotal" color="#4a7cf7" />
       </view>
     </view>
 
-    <view class="card" wx:if="{{!team}}">
-      <view class="menu-item" bindtap="goTeamPage"><text>创建 / 加入团队</text><text class="menu-arrow">›</text></view>
+    <view class="card" wx:if="{{!workspace}}">
+      <view class="menu-item" bindtap="goTeamPage"><text>创建工作空间 / 加入团队</text><text class="menu-arrow">›</text></view>
     </view>
 
     <button class="btn-danger-ghost signout-btn" bindtap="doSignOut">退出登录</button>

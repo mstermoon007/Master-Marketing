@@ -8,7 +8,8 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from .. import db
-from .common import BusinessError, audit, require_date, require_manager, require_member
+from .common import (BusinessError, audit, require_date, require_manager,
+                     require_member, require_writer)
 
 _ENTRY_COLUMNS = frozenset({
     "team_id", "entry_date", "template_id", "template_version",
@@ -55,12 +56,15 @@ def _clean_payload(payload):
     return out
 
 
-def _template_fields(conn, team_id, template_id, version):
+def _template_fields(conn, team_id, template_id, version, workspace_id=None):
     """读取该团队该版本的字段定义；模板不存在或跨团队时直接拒绝。"""
     if not template_id:
         raise BusinessError("缺少录入模板信息")
     sql = "SELECT fields FROM `form_templates` WHERE team_id = %s AND template_id = %s"
     args = [team_id, template_id]
+    if workspace_id:
+        sql += " AND workspace_id = %s"
+        args.append(workspace_id)
     if version is not None:
         sql += " AND version = %s"
         args.append(version)
@@ -145,8 +149,8 @@ def row_to_dict_entry(row):
 
 
 def get_my_entry(conn, uid, p):
-    require_member(conn, uid, p.get("teamId"))
-    return _entry(conn, p.get("teamId"), uid, require_date(p.get("date"), "录入日期"))
+    ctx = require_member(conn, uid, p.get("teamId"))
+    return _entry(conn, ctx["team_id"], uid, require_date(p.get("date"), "录入日期"))
 
 
 def save_entry(conn, uid, p):
@@ -154,16 +158,17 @@ def save_entry(conn, uid, p):
     if not data.get("team_id") or not data.get("entry_date"):
         raise BusinessError("参数错误")
     _check_entry_date(data["entry_date"])
-    # 防止把数据写进别的团队（客户端 team_id 一律校验）
-    require_member(conn, uid, data["team_id"])
+    # 防止把数据写进别的团队（客户端 team_id 一律校验），只读角色不能写
+    ctx = require_writer(conn, uid, data["team_id"])
     data["user_id"] = uid
+    data["workspace_id"] = ctx.get("workspace_id")
     if data.get("status") not in ("draft", "submitted"):
         data["status"] = "draft"
     data["form_data"] = data.get("form_data") or []
 
     # 模板归属 + 提交字段复核（草稿允许半填，不校验必填）
     fields = _template_fields(conn, data["team_id"], data.get("template_id"),
-                              data.get("template_version"))
+                              data.get("template_version"), ctx.get("workspace_id"))
     if data["status"] == "submitted":
         _validate_rows(fields, data["form_data"])
 
@@ -186,19 +191,21 @@ def save_entry(conn, uid, p):
               data.get("template_id"), {
                   "date": data["entry_date"],
                   "rows": len(data["form_data"]) if isinstance(data["form_data"], list) else 0,
-              })
+              }, workspace_id=ctx.get("workspace_id"))
     return row
 
 
 def list_my_entries(conn, uid, p):
-    require_member(conn, uid, p.get("teamId"))
+    ctx = require_member(conn, uid, p.get("teamId"))
     limit = min(max(int(p.get("limit") or 60), 1), 1000)
-    rows = db.query(
-        conn,
-        "SELECT * FROM `daily_entries` WHERE team_id = %s AND user_id = %s "
-        "ORDER BY entry_date DESC LIMIT %s",
-        (p.get("teamId"), uid, limit),
-    )
+    sql = ("SELECT * FROM `daily_entries` WHERE team_id = %s AND user_id = %s ")
+    args = [ctx["team_id"], uid]
+    if ctx.get("workspace_id"):
+        sql += "AND workspace_id = %s "
+        args.append(ctx["workspace_id"])
+    sql += "ORDER BY entry_date DESC LIMIT %s"
+    args.append(limit)
+    rows = db.query(conn, sql, tuple(args))
     return db.rows_to_dicts(rows, "daily_entries")
 
 
@@ -207,17 +214,20 @@ def list_team_entries(conn, uid, p):
 
     ORDER BY 追加 id 作稳定次序，避免同一天多条记录翻页时重复/遗漏。
     """
-    require_manager(conn, uid, p.get("teamId"))
+    ctx = require_manager(conn, uid, p.get("teamId"))
     require_date(p.get("from"), "开始日期")
     require_date(p.get("to"), "结束日期")
     page = _as_int(p.get("page"), 0, 0, 10000)
     page_size = _as_int(p.get("pageSize"), _PAGE_SIZE_DEFAULT, 1, _PAGE_SIZE_MAX)
-    rows = db.query(
-        conn,
-        "SELECT * FROM `daily_entries` WHERE team_id = %s AND entry_date BETWEEN %s AND %s "
-        "ORDER BY entry_date DESC, id DESC LIMIT %s OFFSET %s",
-        (p.get("teamId"), p.get("from"), p.get("to"), page_size, page * page_size),
-    )
+    sql = ("SELECT * FROM `daily_entries` WHERE team_id = %s "
+           "AND entry_date BETWEEN %s AND %s ")
+    args = [ctx["team_id"], p.get("from"), p.get("to")]
+    if ctx.get("workspace_id"):
+        sql += "AND workspace_id = %s "
+        args.append(ctx["workspace_id"])
+    sql += "ORDER BY entry_date DESC, id DESC LIMIT %s OFFSET %s"
+    args.extend([page_size, page * page_size])
+    rows = db.query(conn, sql, tuple(args))
     return db.rows_to_dicts(rows, "daily_entries")
 
 

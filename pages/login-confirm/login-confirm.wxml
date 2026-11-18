@@ -1,0 +1,29 @@
+<view class="page">
+  <view class="card">
+    <view class="title">网页端请求登录</view>
+    <view class="desc" wx:if="{{state !== 'success'}}">
+      确认后，网页管理后台将以你的身份进入，可管理你作为所有者的工作空间。
+    </view>
+
+    <block wx:if="{{state === 'ready'}}">
+      <button class="primary" bindtap="confirm">确认登录</button>
+    </block>
+
+    <block wx:if="{{state === 'loading'}}">
+      <view class="hint">正在确认，请稍候…</view>
+    </block>
+
+    <block wx:if="{{state === 'success'}}">
+      <view class="success">已确认登录</view>
+      <view class="desc">可在网页端继续操作以下工作空间：</view>
+      <view class="space" wx:for="{{workspaces}}" wx:key="id">{{item.name}}</view>
+      <button class="primary" bindtap="backHome">返回小程序</button>
+    </block>
+
+    <block wx:if="{{state === 'error'}}">
+      <view class="error">{{message}}</view>
+      <button wx:if="{{ticket}}" class="primary" bindtap="retry">重试</button>
+      <button class="ghost" bindtap="backHome">返回小程序</button>
+    </block>
+  </view>
+</view>

@@ -1,0 +1,72 @@
+.page {
+  min-height: 100vh;
+  padding: 48rpx 32rpx;
+  box-sizing: border-box;
+  background: #f5f7fa;
+}
+
+.card {
+  padding: 48rpx 36rpx;
+  border-radius: 24rpx;
+  background: #ffffff;
+  box-shadow: 0 8rpx 32rpx rgba(31, 45, 61, 0.08);
+}
+
+.title {
+  font-size: 40rpx;
+  font-weight: 600;
+  color: #1f2d3d;
+}
+
+.desc {
+  margin-top: 20rpx;
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: #5e6d82;
+}
+
+.hint {
+  margin-top: 40rpx;
+  font-size: 28rpx;
+  color: #8a94a6;
+}
+
+.success {
+  margin-top: 32rpx;
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #1f9d55;
+}
+
+.error {
+  margin-top: 32rpx;
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: #d93025;
+}
+
+.space {
+  margin-top: 16rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 16rpx;
+  background: #f0f4ff;
+  font-size: 28rpx;
+  color: #1f2d3d;
+}
+
+.primary {
+  margin-top: 48rpx;
+  background: #4a7cf7;
+  color: #ffffff;
+  border-radius: 16rpx;
+  font-size: 32rpx;
+}
+
+.ghost {
+  margin-top: 24rpx;
+  background: #ffffff;
+  color: #4a7cf7;
+  border: 1rpx solid #4a7cf7;
+  border-radius: 16rpx;
+  font-size: 32rpx;
+}

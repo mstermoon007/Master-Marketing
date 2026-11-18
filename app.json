@@ -11,7 +11,8 @@
     "pages/admin/template-preview/template-preview",
     "pages/admin/reports/reports",
     "pages/admin/analysis/analysis",
-    "pages/admin/members/members"
+    "pages/admin/members/members",
+    "pages/login-confirm/login-confirm"
   ],
   "window": {
     "navigationBarTitleText": "报数机器人AI",

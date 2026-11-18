@@ -56,12 +56,14 @@ def code2session(code: str) -> dict:
 
 
 def issue_token(openid: str, unionid: Optional[str] = None) -> str:
+    """小程序令牌：aud=mini，30 天。"""
     if not config.JWT_SECRET:
         raise RuntimeError("JWT_SECRET 未配置")
     now = int(time.time())
     payload = {
         "sub": openid,
         "iss": JWT_ISS,
+        "aud": "mini",
         "iat": now,
         "exp": now + config.JWT_TTL_DAYS * 24 * 3600,
     }
@@ -70,28 +72,72 @@ def issue_token(openid: str, unionid: Optional[str] = None) -> str:
     return jwt.encode(payload, config.JWT_SECRET, algorithm=JWT_ALG)
 
 
-def verify_token(token: str) -> Optional[str]:
-    """返回 openid；无效/过期返回 None。"""
+def issue_web_token(openid: str) -> str:
+    """Web 管理后台令牌：aud=web，默认 12 小时。"""
+    if not config.JWT_SECRET:
+        raise RuntimeError("JWT_SECRET 未配置")
+    now = int(time.time())
+    payload = {
+        "sub": openid,
+        "iss": JWT_ISS,
+        "aud": "web",
+        "iat": now,
+        "exp": now + config.WEB_TOKEN_TTL_HOURS * 3600,
+    }
+    return jwt.encode(payload, config.JWT_SECRET, algorithm=JWT_ALG)
+
+
+def decode_token(token: str) -> Optional[dict]:
+    """验签并返回完整 claims；无效/过期返回 None。"""
     if not token or not config.JWT_SECRET:
         return None
     try:
-        payload = jwt.decode(
+        return jwt.decode(
             token,
             config.JWT_SECRET,
             algorithms=[JWT_ALG],
             issuer=JWT_ISS,
-            options={"require": ["exp", "iat", "sub"]},
+            options={
+                "require": ["exp", "iat", "sub"],
+                # aud 由 verify_token / 调用方显式判定，避免 web 与 mini 互斥校验被默认规则覆盖
+                "verify_aud": False,
+            },
         )
-        return payload.get("sub")
     except jwt.PyJWTError:
         return None
 
 
-def extract_uid(authorization: Optional[str]) -> Optional[str]:
-    """从 Authorization: Bearer <token> 提取身份。"""
+def verify_token(token: str) -> Optional[str]:
+    """返回小程序身份 openid；Web 令牌（aud=web）在此一律视为无效。"""
+    payload = decode_token(token)
+    if not payload:
+        return None
+    # 兼容 P5 之前签发、没有 aud 的旧令牌
+    if payload.get("aud") not in (None, "mini"):
+        return None
+    return payload.get("sub")
+
+
+def _bearer(authorization: Optional[str]) -> Optional[str]:
     if not authorization or not isinstance(authorization, str):
         return None
     parts = authorization.strip().split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
         return None
-    return verify_token(parts[1])
+    return parts[1]
+
+
+def extract_claims(authorization: Optional[str]) -> Optional[dict]:
+    """从 Authorization: Bearer <token> 提取完整 claims（含 aud）。"""
+    token = _bearer(authorization)
+    if not token:
+        return None
+    return decode_token(token)
+
+
+def extract_uid(authorization: Optional[str]) -> Optional[str]:
+    """从 Authorization: Bearer <token> 提取小程序身份。"""
+    token = _bearer(authorization)
+    if not token:
+        return None
+    return verify_token(token)

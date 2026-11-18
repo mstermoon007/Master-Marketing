@@ -43,9 +43,11 @@ def scope_matches(scope, member) -> bool:
 
 
 def load_active_members(conn, team_id):
+    """应提交成员：active 且未主动退出；只读成员不计入应提交口径。"""
     rows = db.query(
         conn,
         "SELECT * FROM `members` WHERE team_id = %s AND status = 'active' "
+        "AND left_at IS NULL AND role <> 'viewer' "
         "ORDER BY joined_at ASC, id ASC",
         (team_id,),
     )

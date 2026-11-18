@@ -7,27 +7,74 @@ CREATE DATABASE IF NOT EXISTS `jinribao`
 
 USE `jinribao`;
 
--- 团队
-CREATE TABLE IF NOT EXISTS `teams` (
-  `id`          CHAR(24)     NOT NULL,
-  `team_id`     VARCHAR(32)  NOT NULL COMMENT '对外邀请码，如 T4K7QX',
-  `name`        VARCHAR(128) NOT NULL,
-  `owner_uid`   VARCHAR(128) NOT NULL COMMENT 'openid',
-  `config`      JSON         NULL COMMENT '{ memberSeeTeamTotal }',
-  `created_at`  VARCHAR(32)  NOT NULL COMMENT 'ISO8601 UTC',
+-- 工作空间（P4）：组织根节点，一个空间可含多个部门与团队
+CREATE TABLE IF NOT EXISTS `workspaces` (
+  `id`             CHAR(24)     NOT NULL,
+  `workspace_code` VARCHAR(32)  NOT NULL COMMENT '对外稳定编码，迁移时 W+team_id',
+  `name`           VARCHAR(128) NOT NULL,
+  `owner_uid`      VARCHAR(128) NOT NULL COMMENT 'openid',
+  `config`         JSON         NULL COMMENT '{ memberSeeTeamTotal }',
+  `created_at`     VARCHAR(32)  NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_teams_team_id` (`team_id`)
+  UNIQUE KEY `uk_workspaces_code` (`workspace_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 成员（一个 openid 在一个团队内唯一）
+-- 部门（P4）：树形，服务端限制最多 3 级；parent_key 让根部门的唯一键生效
+CREATE TABLE IF NOT EXISTS `departments` (
+  `id`           CHAR(24)     NOT NULL,
+  `workspace_id` CHAR(24)     NOT NULL,
+  `parent_id`    CHAR(24)     NULL,
+  `parent_key`   CHAR(24)     GENERATED ALWAYS AS (IFNULL(`parent_id`, '')) STORED NOT NULL,
+  `name`         VARCHAR(128) NOT NULL,
+  `depth`        TINYINT      NOT NULL DEFAULT 1 COMMENT '1..3',
+  `leader_uid`   VARCHAR(128) NULL COMMENT '部门负责人 openid',
+  `status`       VARCHAR(16)  NOT NULL DEFAULT 'active' COMMENT 'active|archived',
+  `created_at`   VARCHAR(32)  NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dept_ws_parent_name` (`workspace_id`, `parent_key`, `name`),
+  KEY `idx_dept_ws_parent` (`workspace_id`, `parent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 空间成员（P4）：一人可在多个空间；owner/admin/member/viewer
+CREATE TABLE IF NOT EXISTS `workspace_members` (
+  `id`           CHAR(24)     NOT NULL,
+  `workspace_id` CHAR(24)     NOT NULL,
+  `user_id`      VARCHAR(128) NOT NULL COMMENT 'openid',
+  `name`         VARCHAR(64)  NOT NULL,
+  `role`         VARCHAR(16)  NOT NULL DEFAULT 'member' COMMENT 'owner|admin|member|viewer',
+  `status`       VARCHAR(16)  NOT NULL DEFAULT 'active' COMMENT 'active|disabled',
+  `joined_at`    VARCHAR(32)  NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_ws_member` (`workspace_id`, `user_id`),
+  KEY `idx_ws_member_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 团队
+CREATE TABLE IF NOT EXISTS `teams` (
+  `id`            CHAR(24)     NOT NULL,
+  `team_id`       VARCHAR(32)  NOT NULL COMMENT '对外邀请码，如 T4K7QX',
+  `workspace_id`  CHAR(24)     NULL COMMENT '所属工作空间（P4）',
+  `department_id` CHAR(24)     NULL COMMENT '所属部门（P4）',
+  `name`          VARCHAR(128) NOT NULL,
+  `owner_uid`     VARCHAR(128) NOT NULL COMMENT 'openid',
+  `config`        JSON         NULL COMMENT '{ memberSeeTeamTotal }',
+  `created_at`    VARCHAR(32)  NOT NULL COMMENT 'ISO8601 UTC',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_teams_team_id` (`team_id`),
+  KEY `idx_teams_workspace` (`workspace_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 成员（一个 openid 在一个团队内唯一；一人可加入多个团队/工作空间）
 CREATE TABLE IF NOT EXISTS `members` (
-  `id`         CHAR(24)     NOT NULL,
-  `team_id`    VARCHAR(32)  NOT NULL,
-  `user_id`    VARCHAR(128) NOT NULL COMMENT 'openid',
-  `name`       VARCHAR(64)  NOT NULL,
-  `role`       VARCHAR(16)  NOT NULL DEFAULT 'member' COMMENT 'owner|manager|member',
-  `status`     VARCHAR(16)  NOT NULL DEFAULT 'active' COMMENT 'active|disabled',
-  `joined_at`  VARCHAR(32)  NOT NULL,
+  `id`            CHAR(24)     NOT NULL,
+  `team_id`       VARCHAR(32)  NOT NULL,
+  `user_id`       VARCHAR(128) NOT NULL COMMENT 'openid',
+  `name`          VARCHAR(64)  NOT NULL,
+  `role`          VARCHAR(16)  NOT NULL DEFAULT 'member' COMMENT 'owner|manager|member|viewer',
+  `status`        VARCHAR(16)  NOT NULL DEFAULT 'active' COMMENT 'active|disabled',
+  `department_id` CHAR(24)     NULL COMMENT '团队内所属部门（P4）',
+  `left_at`       VARCHAR(32)  NULL COMMENT '离开时间；非空后可重新加入并复用该行',
+  `joined_at`     VARCHAR(32)  NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_members_team_user` (`team_id`, `user_id`),
   KEY `idx_members_user` (`user_id`),
@@ -38,6 +85,7 @@ CREATE TABLE IF NOT EXISTS `members` (
 CREATE TABLE IF NOT EXISTS `form_templates` (
   `id`             CHAR(24)     NOT NULL,
   `team_id`        VARCHAR(32)  NOT NULL,
+  `workspace_id`   CHAR(24)     NULL COMMENT '冗余归属，服务端写入（P4）',
   `template_id`    VARCHAR(64)  NOT NULL,
   `version`        INT          NOT NULL DEFAULT 1,
   `name`           VARCHAR(128) NOT NULL,
@@ -53,13 +101,15 @@ CREATE TABLE IF NOT EXISTS `form_templates` (
   `published_at`   VARCHAR(32)  NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_tpl_team_id_ver` (`team_id`, `template_id`, `version`),
-  KEY `idx_tpl_team_status` (`team_id`, `status`, `version`)
+  KEY `idx_tpl_team_status` (`team_id`, `status`, `version`),
+  KEY `idx_tpl_workspace` (`workspace_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 日录入（幂等：同一成员同一天只有一条）
 CREATE TABLE IF NOT EXISTS `daily_entries` (
   `id`               CHAR(24)     NOT NULL,
   `team_id`          VARCHAR(32)  NOT NULL,
+  `workspace_id`     CHAR(24)     NULL COMMENT '冗余归属，服务端写入（P4）',
   `user_id`          VARCHAR(128) NOT NULL COMMENT 'openid',
   `entry_date`       VARCHAR(10)  NOT NULL COMMENT 'YYYY-MM-DD',
   `template_id`      VARCHAR(64)  NULL,
@@ -72,14 +122,15 @@ CREATE TABLE IF NOT EXISTS `daily_entries` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_entry_team_user_date` (`team_id`, `user_id`, `entry_date`),
   KEY `idx_entry_team_date` (`team_id`, `entry_date`),
+  KEY `idx_entry_workspace_date` (`workspace_id`, `entry_date`),
   KEY `idx_entry_team_user_date` (`team_id`, `user_id`, `entry_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 填报任务（P2）：任务是被考核的下发单元，scope 为创建时的快照。
--- 当前阶段仍以 team_id 为租户边界；P4 引入工作空间后再补 workspace_id。
 CREATE TABLE IF NOT EXISTS `report_tasks` (
   `id`               CHAR(24)     NOT NULL,
   `team_id`          VARCHAR(32)  NOT NULL,
+  `workspace_id`     CHAR(24)     NULL COMMENT '冗余归属，服务端写入（P4）',
   `task_key`         VARCHAR(64)  NOT NULL COMMENT '团队内稳定标识',
   `title`            VARCHAR(128) NOT NULL,
   `template_id`      VARCHAR(64)  NOT NULL,
@@ -95,7 +146,8 @@ CREATE TABLE IF NOT EXISTS `report_tasks` (
   `closed_at`        VARCHAR(32)  NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_task_team_key` (`team_id`, `task_key`),
-  KEY `idx_task_team_status` (`team_id`, `status`, `start_date`)
+  KEY `idx_task_team_status` (`team_id`, `status`, `start_date`),
+  KEY `idx_task_workspace_status` (`workspace_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 分析指标注册表（P3）：metric_code + version 唯一，口径由服务层单点实现
@@ -193,16 +245,35 @@ CREATE TABLE IF NOT EXISTS `analysis_findings` (
   KEY `idx_finding_task` (`task_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 审计日志
+-- 审计日志（P4：空间级审计无 team_id）
 CREATE TABLE IF NOT EXISTS `audit_logs` (
-  `id`          CHAR(24)     NOT NULL,
-  `team_id`     VARCHAR(32)  NOT NULL,
-  `actor`       VARCHAR(128) NOT NULL COMMENT 'openid',
-  `action`      VARCHAR(64)  NOT NULL,
-  `target_type` VARCHAR(64)  NULL,
-  `target_id`   VARCHAR(128) NULL,
-  `detail`      JSON         NULL,
-  `created_at`  VARCHAR(32)  NOT NULL,
+  `id`           CHAR(24)     NOT NULL,
+  `team_id`      VARCHAR(32)  NULL,
+  `workspace_id` CHAR(24)     NULL,
+  `actor`        VARCHAR(128) NOT NULL COMMENT 'openid',
+  `action`       VARCHAR(64)  NOT NULL,
+  `target_type`  VARCHAR(64)  NULL,
+  `target_id`    VARCHAR(128) NULL,
+  `detail`       JSON         NULL,
+  `created_at`   VARCHAR(32)  NOT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_audit_team_time` (`team_id`, `created_at`)
+  KEY `idx_audit_team_time` (`team_id`, `created_at`),
+  KEY `idx_audit_workspace_time` (`workspace_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Web 扫码登录票据（P5）：一次性、5 分钟过期，轮询成功即消费
+CREATE TABLE IF NOT EXISTS `web_login_tickets` (
+  `id`            CHAR(24)     NOT NULL,
+  `ticket`        CHAR(32)     NOT NULL COMMENT '32 位 hex 随机票据',
+  `user_id`       VARCHAR(128) NULL COMMENT '确认登录的 openid',
+  `status`        VARCHAR(16)  NOT NULL DEFAULT 'pending' COMMENT 'pending|confirmed|consumed|expired',
+  `workspace_ids` JSON         NULL COMMENT '确认时可管理的空间 id 快照',
+  `client_ip`     VARCHAR(64)  NULL,
+  `created_at`    VARCHAR(32)  NOT NULL,
+  `expires_at`    VARCHAR(32)  NOT NULL,
+  `confirmed_at`  VARCHAR(32)  NULL,
+  `consumed_at`   VARCHAR(32)  NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_web_ticket` (`ticket`),
+  KEY `idx_web_ticket_status` (`status`, `expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
