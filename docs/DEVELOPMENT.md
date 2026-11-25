@@ -108,7 +108,7 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | 路径 | 职责 | 改动约束 |
 |---|---|---|
 | `app.js` / `app.json` / `app.wxss` | 全局入口、页面注册、全局导航标题、主题变量 | 新增页面须注册 `app.json` |
-| `pages/` | 12 个页面：index / records / profile / team + login-confirm + admin 下 7 页（含 tasks） | 只做 UI 与交互 |
+| `pages/` | 13 个页面：index / records / profile / team + login-confirm + admin 下 8 页（含 tasks） | 只做 UI 与交互 |
 | `components/dynamic-form/` | 动态表单组件（按模板 fields 渲染） | 字段契约见 §6 |
 | `utils/store.js` | 52 个业务 action + `getActiveTemplate` / `getEffectiveTemplates` / `inScope` + `listTeamEntries` 自动翻页 | **对外签名冻结** |
 | `utils/http.js` | `wx.request`、Bearer、401 拦截、token 存储（含内存兜底） | 传输层唯一入口 |
@@ -136,7 +136,7 @@ wx.login → code → POST /auth/login → 服务端 jscode2session(AppID+AppSec
 | `app/init_db.py` | 按 `sql/schema.sql` 幂等建表 |
 | `sql/schema.sql` | 18 张表 DDL + 唯一索引；增量迁移见 `sql/migrate_p2_report_tasks.sql`、`migrate_p3_analysis.sql`、`migrate_p4_workspaces.sql`、`migrate_p5_web_tickets.sql`、`migrate_p6_notifications.sql`、`migrate_p6_heartbeat.sql`、`migrate_p7_notify_scope.sql`、`migrate_p8_analysis_workspace.sql` |
 | `tests/test_contract.py` / `test_baseline.py` / `test_org.py` / `test_web_auth.py` / `test_web_actions.py` / `test_notify.py` | action 对账、基线回归、P4 隔离、P5 扫码登录与导出、P6 通知去重与监控 |
-| `web/` | Vue 3 管理后台（Vite + TS + Element Plus + Pinia），独立子域部署 |
+| `web/` | Vue 3 管理后台（Vite + TS + Element Plus + Pinia），与 API 同域部署 |
 | `.env.example` | 环境变量模板（**真实 `.env` 不入库**） |
 
 ---
@@ -209,7 +209,7 @@ action 元数据集中在 `app/handlers/registry.py`：每个 action 声明所�
 | 部门 | `listDepartments` | `store.listDepartments(workspaceId)` | 部门树（≤3 级） | 成员 |
 | 部门 | `createDepartment` | `store.createDepartment(workspaceId, name, parentId?, leaderUid?)` | 新建部门 | 空间管理员 |
 | 部门 | `updateDepartment` | `store.updateDepartment(workspaceId, id, patch)` | 改名 / 换上级 / 负责人 / 停用；移动校验深度与环路 | 空间管理员 |
-| Web | `confirmWebLogin` | `store.confirmWebLogin(ticket)` | 小程序确认扫码登录；仅团队创建人及以上权限，票据一次性 | 小程序 token + 管理权限 |
+| Web | `confirmWebLogin` | `store.confirmWebLogin(ticket)` | 小程序确认扫码登录；空间 owner/admin 或团队 owner/manager，票据一次性 | 小程序 token + 管理权限 |
 | Web | `getWorkspaceOverview` | `callApi('getWorkspaceOverview', {workspaceId})` | 工作台汇总：今日应提交/已提交/提交率、未提交、活跃任务、7 天趋势、近 7 天异常 | 团队 owner/manager 或空间 owner/admin |
 | Web | `listAuditLogs` | `callApi('listAuditLogs', {...})` | 审计分页；`workspace_id` 强制过滤，`LIMIT/OFFSET` 参数化 | 团队 owner/manager 或空间 owner/admin |
 | 通知 | `getSubscribeTemplates` | `store.getSubscribeTemplates()` | 返回服务端已配置的模板 ID，小程序订阅授权唯一来源 | 登录 |
@@ -253,7 +253,7 @@ action 元数据集中在 `app/handlers/registry.py`：每个 action 声明所�
 
 - 小程序令牌 `aud=mini`（30 天）与 Web 令牌 `aud=web`（12 小时）互不通用；P5 之前签发、没有 `aud` 的旧令牌按 `mini` 处理。
 - Web 令牌只能调用 `server/app/handlers/__init__.py` 的 `WEB_ACTIONS` 白名单；`saveEntry` / `getMyEntry` / `listMyEntries` / `log` / `confirmWebLogin` 一律拒绝。
-- CORS 只放行 `WEB_ORIGIN`（默认 `https://admin.modouyu.top`）与本地 `5173`，不使用 `*`。
+- CORS 只放行 `WEB_ORIGIN`（默认 `https://api.modouyu.top`）与本地 `5173`，不使用 `*`。
 
 ### 消息通知与调度（P6）
 
@@ -336,7 +336,7 @@ action 元数据集中在 `app/handlers/registry.py`：每个 action 声明所�
 - 执行器写操作白名单仅 `analysis_*`；`services/dataset.py` 只有 SELECT，禁止引用 `db.insert/update/remove/execute`。
 - 报告为确定性拼接，不含模型推断；无数据时明确输出「数据不足，暂不生成结论」，不补零。
 
-样例报告（真实输出格式）：
+样例报告（格式示例，非线上数据）：
 
 ```text
 【分析报告】销售一队 · 2026-11-10 至 2026-11-16
@@ -430,7 +430,7 @@ action 元数据集中在 `app/handlers/registry.py`：每个 action 声明所�
 | `WX_APPID` / `WX_SECRET` | 空 | 服务端专用，启动时强制校验非空 |
 | `JWT_SECRET` | 空 | 随机长串，启动时强制校验非空且 **≥32 字符** |
 | `JWT_TTL_DAYS` | `30` | 小程序 token 有效期 |
-| `WEB_ORIGIN` | `https://admin.modouyu.top` | Web 管理后台来源，CORS 白名单 |
+| `WEB_ORIGIN` | `https://api.modouyu.top` | Web 管理后台来源，CORS 白名单 |
 | `WEB_TOKEN_TTL_HOURS` | `12` | Web token 有效期（`aud=web`） |
 | `WX_HTTP_TIMEOUT` | `5` | 微信接口超时（秒） |
 | `WX_TMPL_DAILY_REMIND` / `WX_TMPL_DUE_REMIND` / `WX_TMPL_MISSING_REMIND` / `WX_TMPL_ANOMALY_ALERT` | 空 | 四类订阅消息模板 ID，**唯一配置源**（小程序通过 `getSubscribeTemplates` 拉取）；留空只记录 skipped，不调微信 |
@@ -459,7 +459,7 @@ Web 后台（可选）：
 ```bash
 cd web
 npm ci
-npm run dev                 # http://localhost:5173，/api 与 /auth 代理到 127.0.0.1:8000
+npm run dev                 # http://localhost:5173，/api 与 /auth 代理到 127.0.0.1:8001
 npm run build               # 类型检查 + 产物 web/dist/
 ```
 
@@ -479,10 +479,10 @@ npm run build               # 类型检查 + 产物 web/dist/
 - [ ] `utils/config.js` 的 `RELEASE_BASE` / `DEV_BASE` 指向已备案 HTTPS 域名
 - [ ] 微信公众平台配置 **request 合法域名**
 - [ ] 小程序已发布包含 `pages/login-confirm/login-confirm` 的版本
-- [ ] `web/.env.local` 配 `VITE_API_BASE=https://api.modouyu.top`，`npm run build` 通过，`web/dist` 部署到 `admin.modouyu.top`（Nginx SPA 回退）
+- [ ] `web/.env.local` 配 `VITE_API_BASE=https://api.modouyu.top`（同源可留空），`npm run build` 通过，`web/dist` 部署到 `/var/www/jinribao-admin`（`api.modouyu.top` 的 Nginx SPA 回退）
 - [ ] Nginx 终止 TLS + gunicorn/systemd 托管，`/health` 可访问
 - [ ] `python -m pytest -q` 通过；`bash server/finish.sh` 的验证项全部通过
-- [ ] 按 [§16 真机联调清单](#16-真机联调清单未实测项的可执行步骤) 逐项走通 T0–T18
+- [ ] 按 [§16 真机联调清单](#16-真机联调清单未实测项的可执行步骤) 逐项走通 T0–T20
 
 ---
 
@@ -513,9 +513,9 @@ npm run build               # 类型检查 + 产物 web/dist/
 | 应提交口径 | 检索 `inAnyScope` / `getActiveTemplate(..., true)` / `ignoreScope` | 0 命中；管理端只用 `getReportTaskStatus` |
 | 死字段 | 检索 `hasTeam` / `myTeams` / `ignoreScope` | 仅历史注释可命中，代码 0 命中 |
 
-> 当前会话无命令行工具、无本地文件删除能力，也未配置 Python / JS 语言服务（LSP 探测均返回 "No LSP server configured"），因此编译、单测与 `node --check` 必须在**本机终端**执行。
 > `server/finish.sh` 为**纯验证脚本**：一次跑完 8 项验证（依赖预检 / compileall / pytest / `node --check` / 残留与名称一致性 / 首次启动配置自检 / `ruff` + `mypy` / Web `vitest`），任一失败项汇总为 `FAIL=1` 退出码；只验证，不修改或删除任何文件，`--verify-only` 为兼容旧用法的等价参数。`ruff`/`mypy` 或 `web/node_modules` 缺失时对应项提示跳过，不判失败。
-> 会话内**已实际执行**的验证：前端 52 个 action ↔ 后端 52 个 `HANDLERS`、云开发引用 0 命中、旧名称 0 命中（仅脚本检索模式自引用）、死字段 0 命中。
+> 最近一次验证（`bash server/finish.sh`）：8/8 通过；服务端 `200 passed, 7 skipped`，Web `vitest` `22 passed`，`ruff` + `mypy` 全通过。
+> 契约对账口径：前端 52 个 action ↔ 后端 52 个 `HANDLERS`；云开发引用、旧名称与死字段在活跃代码中均为 0 命中。
 
 ---
 
@@ -605,7 +605,7 @@ npm run build               # 类型检查 + 产物 web/dist/
 | T16 | 跨空间越权 | 用 A 空间账号直接请求 B 空间团队的 `teamId`（改包或改用例） | 读、写均返回业务错误，不泄露 B 空间数据 | P4 隔离 |
 | T17 | 通知骨架 | 不配 `WX_TMPL_*` 提交一条日报 → 查看 `notification_logs` | 记录 `status=skipped`、原因为「未配置订阅消息模板」，填报本身成功不受影响 | P6 通知 |
 | T18 | 通知去重 | 两个 gunicorn worker 同时触发同一周期提醒 | 同一 `(user_id, notify_type, period_key)` 只有一条记录，微信只收到一次 | P6 调度 |
-| T19 | Web 扫码登录 | 打开 `admin.modouyu.top` → 微信扫码 → 小程序内点「确认登录」 | Web 自动进入工作台；同一二维码重复轮询只发一次令牌；5 分钟后过期自动换码；非团队创建人/管理员扫码提示「仅团队创建人及以上权限人员可登录管理后台」 | P5 登录 |
+| T19 | Web 扫码登录 | 打开 `https://api.modouyu.top/` → 微信扫码 → 小程序内点「确认登录」 | 空间 owner/admin 或团队 owner/manager 自动进入工作台；普通 member/viewer 提示「仅团队创建人及以上权限人员可登录管理后台」；同一二维码重复轮询只发一次令牌；5 分钟后过期自动换码 | P5 登录 |
 | T20 | Web 白名单与导出 | Web 登录后切换空间/团队，浏览组织/模板/任务/数据/分析/审计；在数据中心导出 Excel | 数据与小程序一致；导出列头/权限与列表一致；用 Web 令牌直接调 `saveEntry` 返回「Web 端无权调用该操作」 | P5 白名单 / 导出 |
 
 > T13 的输出建议整段贴回对话，便于按具体报错逐条收尾。

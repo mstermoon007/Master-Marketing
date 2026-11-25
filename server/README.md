@@ -1,7 +1,7 @@
 # 报数机器人AI · 服务端部署说明
 
 自有服务端（Python 3 + FastAPI + MySQL 8），替代原微信云开发云函数。
-对外保持同一套 `action + payload` 契约，小程序端 11 个页面共用同一套 action。
+对外保持同一套 `action + payload` 契约，小程序端 13 个页面共用同一套 action。
 
 > 项目总览见 [`../README.md`](../README.md)，完整接口/数据表/回归清单见 [`../docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md)。
 > 本文件只讲**服务端部署与运维**，接口与字段约定以开发文档为准。
@@ -74,35 +74,35 @@ python -m mypy app
 cd server
 
 # P2：填报任务表（依赖 teams / form_templates）
-docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
+docker compose exec -T mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
   < sql/migrate_p2_report_tasks.sql
 
 # P3：分析引擎 5 张表（依赖 P2 的 report_tasks）
-docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
+docker compose exec -T mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
   < sql/migrate_p3_analysis.sql
 
 # P4：工作空间 / 部门 / 空间成员，回填 workspace_id（依赖 P3）
-docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
+docker compose exec -T mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
   < sql/migrate_p4_workspaces.sql
 
 # P5：Web 扫码登录票据表（依赖 P4）
-docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
+docker compose exec -T mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
   < sql/migrate_p5_web_tickets.sql
 
 # P6：订阅设置与通知投递记录（依赖 P5）
-docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
+docker compose exec -T mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
   < sql/migrate_p6_notifications.sql
 
 # P6：调度心跳表，供工作台判断调度存活（依赖 P6 通知表）
-docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
+docker compose exec -T mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
   < sql/migrate_p6_heartbeat.sql
 
 # P7：通知去重按租户隔离（依赖 P6 通知表）
-docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
+docker compose exec -T mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
   < sql/migrate_p7_notify_scope.sql
 
 # P8：分析任务补空间归属，运行监控免 JOIN（依赖 P3/P4）
-docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
+docker compose exec -T mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
   < sql/migrate_p8_analysis_workspace.sql
 ```
 
@@ -121,7 +121,7 @@ docker exec -i jinribao-mysql mysql -uroot -p"$DB_PASSWORD" jinribao \
 - P7 回滚（`migrate_p7_notify_scope_rollback.sql`）**有损**：旧唯一键比新键严格，若同一用户同一周期已在多个团队各发过通知，重建旧键会冲突；执行前先跑脚本头部注释里的重复检查 SQL。
 - P8 回滚（`migrate_p8_analysis_workspace_rollback.sql`）只删列与索引，但会丢失任务创建时的空间归属快照；回滚前先把应用退到 P7 版本并备份 `analysis_tasks`。
 - 自检数字不符即视为迁移未生效，先排查再启动服务。
-- 非 Docker 部署把 `docker exec -i jinribao-mysql mysql ...` 换成 `mysql -h <host> -u <user> -p <db>` 即可，脚本内含 `SET NAMES utf8mb4;`。
+- 非 Docker 部署把 `docker compose exec -T mysql mysql ...` 换成 `mysql -h <host> -u <user> -p <db>` 即可，脚本内含 `SET NAMES utf8mb4;`。
 
 
 ## 真实 MySQL 集成测试（可选）
@@ -159,10 +159,10 @@ npm test                        # vitest 单测（22 项）
 npm run build                   # 产物在 web/dist/
 ```
 
-- 静态站点部署到独立子域 `admin.modouyu.top`，Nginx 需配置 SPA 回退：`try_files $uri $uri/ /index.html;`。
-- API 服务端设置 `WEB_ORIGIN=https://admin.modouyu.top`；CORS 只放行该来源与本地 `5173` 端口。
+- Web 与 API 同域部署：`https://api.modouyu.top/`；静态产物放在 `/var/www/jinribao-admin`，Nginx 用 `try_files $uri $uri/ /index.html;` 做 SPA 回退。
+- API 服务端设置 `WEB_ORIGIN=https://api.modouyu.top`；CORS 放行该来源与本地 `5173` 端口。
 - 小程序码跳转页面固定为 `pages/login-confirm/login-confirm`，发布小程序时必须包含该页面。
-- 本地联调：`cd web && npm run dev`，Vite 会把 `/api`、`/auth` 代理到 `127.0.0.1:8000`；若后端用 Docker Compose（宿主机 8001），需把 `web/vite.config.ts` 的 proxy 目标改为 `127.0.0.1:8001`。
+- 本地联调：`cd web && npm run dev`，Vite 会把 `/api`、`/auth` 代理到 `127.0.0.1:8001`（Compose 宿主机端口）；容器内后端仍监听 `8000`。
 
 ### 登录与权限
 

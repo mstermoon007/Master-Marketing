@@ -36,8 +36,8 @@ WX_HTTP_TIMEOUT = int(_opt("WX_HTTP_TIMEOUT", "5"))
 JWT_SECRET = _opt("JWT_SECRET", "")
 JWT_TTL_DAYS = int(_opt("JWT_TTL_DAYS", "30"))
 
-# Web 管理后台：独立子域 + 独立有效期的 aud=web 令牌
-WEB_ORIGIN = _opt("WEB_ORIGIN", "https://admin.modouyu.top")
+# Web 管理后台：与 API 同域 + 独立有效期的 aud=web 令牌
+WEB_ORIGIN = _opt("WEB_ORIGIN", "https://api.modouyu.top")
 WEB_TOKEN_TTL_HOURS = int(_opt("WEB_TOKEN_TTL_HOURS", "12"))
 
 # ---- 消息通知（P6）----

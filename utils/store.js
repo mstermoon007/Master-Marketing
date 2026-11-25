@@ -193,7 +193,7 @@ async function switchWorkspace(params) {
 }
 
 // ---------- Web 扫码登录（P5）----------
-// 仅在空间所有者的微信里调用；ticket 为 Web 端生成的一次性 32 位 hex
+// 仅在有管理权限的微信里调用；ticket 为 Web 端生成的一次性 32 位 hex
 async function confirmWebLogin(ticket) {
   return callApi('confirmWebLogin', { ticket: ticket })
 }

@@ -123,7 +123,7 @@ onBeforeUnmount(() => {
       <el-button class="refresh" :loading="loading" @click="start">刷新二维码</el-button>
 
       <div class="tip">
-        仅空间所有者可登录。扫码后请在小程序内点击「确认登录」。
+        空间 owner/admin 或团队 owner/manager 可登录。扫码后请在小程序内点击「确认登录」。
       </div>
     </div>
   </div>

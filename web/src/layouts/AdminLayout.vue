@@ -94,7 +94,7 @@ function logout() {
           <span class="muted">{{ pageTitle }}</span>
         </div>
         <div class="right">
-          <span class="muted role">空间所有者</span>
+          <span class="muted role">管理权限</span>
           <el-button link type="primary" @click="logout">退出登录</el-button>
         </div>
       </el-header>

@@ -23,7 +23,7 @@
 ## 架构
 
 ```
-微信小程序（12 个页面 + dynamic-form 组件）
+微信小程序（13 个页面 + dynamic-form 组件）
    │  utils/store.js    业务动作收敛为 action + payload
    │  utils/http.js     wx.request + Authorization: Bearer <JWT>
    ▼
@@ -38,7 +38,7 @@
 MySQL 8（workspaces / departments / workspace_members / teams / members / form_templates / daily_entries / report_tasks / audit_logs / analysis_* / web_login_tickets）
 
 Web 管理后台 web/（Vue 3 + Vite + Element Plus + Pinia）
-   └─ admin.modouyu.top，仅空间所有者扫码登录
+   └─ https://api.modouyu.top/，空间 owner/admin 或团队 owner/manager 可扫码登录
 ```
 
 | 层 | 技术 | 入口 |
@@ -71,7 +71,7 @@ docker compose up -d --build  # 在 server/ 目录执行
 # 3) Web 管理后台（可选，回到仓库根目录）
 cd ../web
 npm ci
-npm run dev        # http://localhost:5173，默认代理到本机 8000（Compose 改为 8001）
+npm run dev        # http://localhost:5173，/api 与 /auth 默认代理到本机 8001
 
 # 4) 验证（回到仓库根目录；只跑 8 项验证，不修改任何文件）
 cd ..
@@ -82,7 +82,7 @@ bash server/finish.sh
 
 1. `utils/config.js`：`RELEASE_BASE` 填生产 HTTPS 已备案域名；`DEV_BASE` 默认 `http://127.0.0.1:8001`（Compose），本机直跑改为 `8000`。仍是 `example.com` 时，请求会直接报「服务端地址尚未配置」，而不是笼统的网络错误。
 2. `server/.env` 由 `.env.example` 复制并填 `DB_*` / `WX_APPID` / `WX_SECRET` / `JWT_SECRET`；缺密钥服务启动即报错。
-3. 开发期在微信开发者工具「详情 → 本地设置」勾选「不校验合法域名」；仓库已在 `project.private.config.json` 关闭 `urlCheck`，真机预览/上线仍要求合法 HTTPS 域名。
+3. 开发期在微信开发者工具「详情 → 本地设置」勾选「不校验合法域名」；本机 `project.private.config.json`（不入库）可关闭 `urlCheck`，真机预览/上线仍要求合法 HTTPS 域名。
 
 > `bash server/finish.sh` 的验证 6/8 会自动检查第 1、2 项是否遗漏，只提示不判失败。
 
@@ -91,7 +91,7 @@ bash server/finish.sh
 1. `server/.env` 配好 `DB_*` / `WX_APPID` / `WX_SECRET` / `JWT_SECRET`（密钥只在服务端）。
 2. `utils/config.js` 的 `RELEASE_BASE` 换成自己的 HTTPS 已备案域名（`DEV_BASE` 仅开发期使用，不参与发布）；微信公众平台 → 开发管理 → 服务器域名 → 添加 **request 合法域名**。
 3. 全新安装执行 `python -m app.init_db`（18 张表）；存量库按顺序执行 `server/sql/migrate_p2_report_tasks.sql` → `server/sql/migrate_p3_analysis.sql` → `server/sql/migrate_p4_workspaces.sql` → `server/sql/migrate_p5_web_tickets.sql` → `server/sql/migrate_p6_notifications.sql` → `server/sql/migrate_p6_heartbeat.sql` → `server/sql/migrate_p7_notify_scope.sql` → `server/sql/migrate_p8_analysis_workspace.sql`（幂等，脚本末尾自带自检）。P4 回滚脚本 `migrate_p4_rollback.sql` 有损，执行前先备份；P5/P6 回滚只删本轮新增表；P7 回滚会重建更严格的旧唯一键，重复通知存在时会失败；P8 回滚只删分析任务的空间列，但会丢失历史归属快照。用 Nginx 终止 TLS，gunicorn/systemd 托管进程；调度由独立 `scheduler` 容器运行。
-4. Web 后台设置 `WEB_ORIGIN=https://admin.modouyu.top` 与 `VITE_API_BASE=https://api.modouyu.top`，构建 `web/dist` 后部署到独立子域；小程序需包含 `pages/login-confirm/login-confirm`。
+4. Web 后台设置 `WEB_ORIGIN=https://api.modouyu.top` 与 `VITE_API_BASE=https://api.modouyu.top`（同源时可留空），构建 `web/dist` 后部署到 `/var/www/jinribao-admin`，由 `api.modouyu.top` 的 `location /` 做 SPA 回退；小程序需包含 `pages/login-confirm/login-confirm`。
 5. 真机预览与上线必须完成第 2 步；IP / localhost 在真机不可用。
 6. `bash server/finish.sh` 的 8 项验证全绿，并按 [`docs/DEVELOPMENT.md` §16](docs/DEVELOPMENT.md) 的真机联调清单逐项走通。
 
@@ -105,7 +105,7 @@ bash server/finish.sh
 - `listTeamEntries` 由 `store.js` 自动翻页拉全（单次 1000 条，上限 5 万条），超限明确报错而不是静默截断。
 - 管理端「应提交名单」按**全部已生效模板**的下发范围取并集，不再只看最新一个模板。
 - 新增 action 必须同时在 `utils/store.js` 与 `server/app/handlers/` 注册，并补 `server/tests/test_contract.py`。
-- Web 管理后台仅空间所有者可扫码登录；Web 令牌（`aud=web`）只能调用 `handlers.WEB_ACTIONS` 白名单，不能调用填报类 action。
+- Web 管理后台仅空间 owner/admin 或团队 owner/manager 可扫码登录；Web 令牌（`aud=web`）只能调用 `handlers.WEB_ACTIONS` 白名单，不能调用填报类 action。
 - 强制约束全文见 `CODEBUDDY.md`（禁止 `wx.cloud` / 云函数 / CloudBase 能力）。
 
 完整约定、接口清单与回归检查表见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)。

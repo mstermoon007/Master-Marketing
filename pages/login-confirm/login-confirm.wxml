@@ -2,7 +2,7 @@
   <view class="card">
     <view class="title">网页端请求登录</view>
     <view class="desc" wx:if="{{state !== 'success'}}">
-      确认后，网页管理后台将以你的身份进入，可管理你作为所有者的工作空间。
+      确认后，网页管理后台将以你的身份进入，可管理你有管理权限的工作空间与团队。
     </view>
 
     <block wx:if="{{state === 'ready'}}">

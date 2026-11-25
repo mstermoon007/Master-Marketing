@@ -1,11 +1,12 @@
 # P5 Web 管理后台实施计划
 
+> **历史实施计划存档**：当前口径以 `README.md` 与 `docs/DEVELOPMENT.md` 为准；Web 与 API 同域 `https://api.modouyu.top/`，空间 owner/admin 或团队 owner/manager 可登录。
 > 依据 `docs/UPGRADE_PLAN.md` §3.3 / §6.1 / §7 P5，结合 P4 已交付的组织模型。
-> 已确认：Web 工程放当前仓库 `web/`；仅空间 owner 可扫码登录；独立子域部署。
+> 已确认：Web 工程放当前仓库 `web/`；空间 owner/admin 或团队 owner/manager 可扫码登录；与 API 同域部署。
 
 ## 1. 目标与边界
 
-**目标**：为空间所有者/管理员提供复杂配置与批量管理能力，小程序继续只做移动填报。
+**目标**：为空间 owner/admin 与团队 owner/manager 提供复杂配置与批量管理能力，小程序继续只做移动填报。
 
 **范围**
 - 扫码登录（小程序码 + 轮询，一次性 ticket）
@@ -25,7 +26,7 @@
 ## 2. 架构与登录时序
 
 ```text
-Web(admin.modouyu.top)                API(api.modouyu.top)                小程序
+Web + API(https://api.modouyu.top)                                     小程序
   │ POST /auth/web/ticket                  │                                │
   │───────────────────────────────────────>│ 生成 ticket(5min, 一次性)      │
   │<────── {ticket, qrcode, expiresIn} ────│ wxacode.getUnlimited(scene)    │
@@ -34,14 +35,14 @@ Web(admin.modouyu.top)                API(api.modouyu.top)                小程
   │───────────────────────────────────────>│                                │
   │                                        │<── 扫码进入 pages/login-confirm │
   │                                        │    confirmWebLogin{ticket}      │
-  │                                        │    校验 space owner → confirmed │
+   │                                        │    校验管理权限 → confirmed     │
   │<──── {status, token(aud=web), spaces} ──│                                │
 ```
 
 - ticket：32 位随机 hex，`status` 为 `pending / confirmed / consumed / expired`，5 分钟过期，轮询成功即消费。
 - Web token：`aud=web`，12 小时；小程序 token 无 `aud` 或 `aud=mini`，30 天。二者互不通用。
-- `confirmWebLogin` 仅接受小程序 token；校验 `workspaces.owner_uid = uid`（老数据回退 `teams.owner_uid = uid`）。
-- 每个 Web 请求仍按数据库实时校验 owner 身份，不信任 token 内嵌的空间列表。
+- `confirmWebLogin` 仅接受小程序 token；校验空间 owner/admin 或团队 owner/manager（含老数据 `teams.owner_uid`）。
+- 每个 Web 请求仍按数据库实时校验管理权限，不信任 token 内嵌的空间列表。
 - 小程序码依赖 `access_token`，新增带内存缓存的微信客户端（提前 5 分钟刷新）。
 
 ## 3. 数据模型
@@ -82,7 +83,7 @@ CREATE TABLE IF NOT EXISTS `web_login_tickets` (
   - `POST /auth/web/ticket` → `{ticket, qrcode, expiresIn}`
   - `POST /auth/web/ticket/status` → `{status, token?, workspaces?}`
   - `POST /auth/web/refresh`（Bearer web token）→ `{token}`
-- CORS 收紧为 `WEB_ORIGIN`（默认 `https://admin.modouyu.top`），环境变量缺失时仅允许本地调试源。
+- CORS 收紧为 `WEB_ORIGIN`（默认 `https://api.modouyu.top`），环境变量缺失时仅允许本地调试源。
 
 ### 4.2 微信小程序码（新增 `app/services/wechat.py`）
 
@@ -94,9 +95,9 @@ CREATE TABLE IF NOT EXISTS `web_login_tickets` (
 
 | action | 说明 | 权限 |
 |---|---|---|
-| `confirmWebLogin` | 小程序确认扫码登录，返回可管理的空间 | 小程序 token；空间 owner |
-| `getWorkspaceOverview` | 工作台汇总：今日应提交/已提交/提交率、未提交人数、活跃任务、近 7 天趋势、最近异常数 | 空间 owner/admin |
-| `listAuditLogs` | 审计分页查询（workspace_id + 时间范围 + actor/action 过滤） | 空间 owner/admin |
+| `confirmWebLogin` | 小程序确认扫码登录，返回可管理的空间 | 小程序 token；空间 owner/admin 或团队 owner/manager |
+| `getWorkspaceOverview` | 工作台汇总：今日应提交/已提交/提交率、未提交人数、活跃任务、近 7 天趋势、最近异常数 | 空间 owner/admin 或团队 owner/manager |
+| `listAuditLogs` | 审计分页查询（workspace_id + 时间范围 + actor/action 过滤） | 空间 owner/admin 或团队 owner/manager |
 
 - 工作台指标必须调用 `services/dataset.load_dataset` + `services/metrics.compute`，不得另写口径（红线 7）。
 - `listAuditLogs` 按 `workspace_id` 强制过滤，`LIMIT/OFFSET` 参数化。
@@ -154,15 +155,15 @@ web/
 
 ## 7. 权限矩阵（Web）
 
-| 能力 | 空间 owner | 空间 admin | 部门负责人 | 团队负责人 | 成员/viewer |
-|---|---|---|---|---|---|
-| 扫码登录 | ✅ | ❌ | ❌ | ❌ | ❌ |
-| 工作台/审计 | ✅ | ✅（授权范围） | ❌ | ❌ | ❌ |
-| 空间配置 | ✅ | ❌ | ❌ | ❌ | ❌ |
-| 部门/成员/角色 | ✅ | ✅（不含空间 owner） | 只读本部门 | 只读本团队 | ❌ |
-| 模板/任务 | ✅ | ✅ | ✅ 本部门 | ✅ 本团队 | ❌ |
-| 数据/导出 | ✅ | ✅ | ✅ 本部门 | ✅ 本团队 | ❌ |
-| 分析结果 | ✅ | ✅ | ✅ 本部门 | ❌ | ❌ |
+| 能力 | 空间 owner/admin | 团队 owner/manager | 部门负责人 | 成员/viewer |
+|---|---|---|---|---|
+| 扫码登录 | ✅ | ✅ | ❌ | ❌ |
+| 工作台/审计 | ✅ | ✅ | ❌ | ❌ |
+| 空间配置 | ✅ | ❌ | ❌ | ❌ |
+| 部门/成员/角色 | ✅（不含空间 owner） | 只读本团队 | 只读本部门 | ❌ |
+| 模板/任务 | ✅ | ✅ 本团队 | ✅ 本部门 | ❌ |
+| 数据/导出 | ✅ | ✅ 本团队 | ✅ 本部门 | ❌ |
+| 分析结果 | ✅ | ❌ | ✅ 本部门 | ❌ |
 
 > 最终以服务端 `require_*` + `org.effective_role` 判定为准；前端只做展示裁剪。
 
@@ -186,7 +187,7 @@ web/
 **服务端**
 - `tests/test_web_auth.py`：ticket 创建/确认/消费/过期、重复消费、非 owner 拒绝、web/mini token 互斥、白名单拒绝、refresh。
 - `tests/test_web_actions.py`：工作台复用 `metrics.compute`、审计强制 workspace 过滤、导出权限与列头、5 万行上限。
-- `test_contract.py`：action 总数 47；JSON 表 15 张；迁移脚本断言。
+- `test_contract.py`：当前口径为 action 总数 52；JSON 表 18 张（本计划当时目标为 47 / 15）。
 - `python3 -m pytest -q`、`bash server/finish.sh` 全绿。
 
 **Web**
@@ -194,7 +195,7 @@ web/
 - 手工：扫码登录 → 工作台 → 组织/模板/任务/数据/分析/审计 → 导出；Web token 调 `saveEntry` 被拒。
 
 **验收**
-- 仅空间 owner 可登录；admin 按授权范围可管理；
+- 空间 owner/admin 或团队 owner/manager 可登录，普通 member/viewer 拒绝；
 - 一人多空间可切换；小程序与 Web 数据一致；
 - 导出权限与在线查询一致；Web token 12 小时且不能调用填报类 action。
 
@@ -204,14 +205,14 @@ web/
 |---|---|
 | 小程序码接口配额/失败 | 缓存 access_token；失败明确提示并允许重新生成 ticket |
 | 轮询压力 | 1.5 秒间隔、5 分钟自动停止；ticket 唯一键 + 过期清理 |
-| Web token 越权 | `aud` 隔离 + 显式白名单 + 每请求实时 owner 校验 |
+| Web token 越权 | `aud` 隔离 + 显式白名单 + 每请求实时管理权限校验 |
 | 导出大表 | 流式写、50000 行上限、按团队+日期索引 |
-| 部署跨域 | 独立子域 + `WEB_ORIGIN` 白名单，不使用 `*` |
+| 部署跨域 | API 与 Web 同域 + `WEB_ORIGIN` 白名单，不使用 `*` |
 
 ## 11. 上线顺序
 
 1. 备份数据库 → 执行 `migrate_p5_web_tickets.sql`（幂等）。
 2. 部署 API（新增环境变量 `WEB_ORIGIN`、`WEB_TOKEN_TTL_HOURS`），验证 `/health` 与旧 action。
 3. 发布小程序（确认登录页）；旧版本小程序不受影响。
-4. 构建 `web/dist` 并部署到 `admin.modouyu.top`。
+4. 构建 `web/dist` 并部署到 `/var/www/jinribao-admin`，由 `api.modouyu.top` 提供同域访问。
 5. 按 §9 验收；异常时下线 Web 静态站点即可回退，数据库表可保留。
