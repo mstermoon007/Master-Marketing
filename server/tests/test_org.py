@@ -24,6 +24,7 @@ def _team(team_id="T1", workspace_id="W1", department_id=None):
         "workspace_id": workspace_id,
         "department_id": department_id,
         "name": team_id + " 队",
+        "owner_name": "张三",
         "owner_uid": "openid-owner",
         "config": {"memberSeeTeamTotal": False},
     }
@@ -262,6 +263,7 @@ def test_switch_workspace_returns_role_and_team(monkeypatch):
     out = ws.switch_workspace(None, "openid-x", {"teamId": "T2"})
     assert out["workspace"]["id"] == "W2"
     assert out["workspaceRole"] == "member"
+    assert out["team"]["owner_name"] == "张三"
     assert out["team"]["team_id"] == "T2"
     assert out["member"]["workspace_role"] == "member"
 

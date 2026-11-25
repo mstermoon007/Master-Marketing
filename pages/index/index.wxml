@@ -4,18 +4,11 @@
 <!-- ========== 已登录主界面 ========== -->
 <block wx:elif="{{authState === 'ready' && !needTeam}}">
   <view class="home">
-    <!-- 顶部渐变 Hero -->
+    <!-- 顶部 Hero -->
     <view class="hero">
-      <view class="hero-title-row">
-        <text class="hero-title">报数机器人AI</text>
-        <text class="hero-title-en">AI DAILY REPORT</text>
-      </view>
       <view class="hero-top">
-        <view class="hero-team">
-          <text class="hero-team-name">{{teamName}}</text>
-          <text class="hero-role">{{role === 'owner' ? '负责人' : (role === 'manager' ? '管理员' : '成员')}}</text>
-        </view>
-        <text class="hero-user">{{memberName}}</text>
+        <text class="hero-creator">{{creatorName}}</text>
+        <text class="hero-team-name">{{teamName}}</text>
       </view>
       <view class="hero-date-row">
         <view class="date-arrow {{canPrev ? '' : 'date-arrow-off'}}" data-delta="-1" bindtap="shiftEntryDate">‹</view>
@@ -82,6 +75,21 @@
         </view>
       </block>
 
+      <view class="card template-list-card" wx:if="{{availableTemplates.length > 1}}">
+        <view class="section-head">
+          <text class="section-title">可用模板</text>
+          <text class="section-count">{{availableTemplates.length}} 个</text>
+        </view>
+        <view class="template-item {{item.isActive ? 'template-item-active' : ''}}" wx:for="{{availableTemplates}}" wx:key="template_id">
+          <view class="template-item-main">
+            <text class="template-name">{{item.name}}</text>
+            <text class="template-meta">v{{item.version}} · {{item.fieldCount}} 字段 · {{item.scopeText}}</text>
+          </view>
+          <text class="template-active-tag" wx:if="{{item.isActive}}">当前</text>
+        </view>
+        <view class="template-note">同一天仅提交一条记录，默认使用列表中第一个模板。</view>
+      </view>
+
       <!-- 管理入口 -->
       <view class="card admin-card" wx:if="{{isManager}}">
         <view class="admin-card-title">管理</view>
@@ -103,7 +111,7 @@
     <view class="login-logo-ring">
       <text class="login-logo">📋</text>
     </view>
-    <view class="login-title">报数机器人AI</view>
+    <view class="login-title">开始记录</view>
     <view class="login-desc">每天 30 秒，记好每一笔工作记录</view>
   </view>
   <view class="login-card">

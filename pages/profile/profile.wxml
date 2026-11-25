@@ -51,7 +51,7 @@
     <view class="card" wx:if="{{isOwner && team}}">
       <view class="menu-item">
         <text>普通成员可见团队汇总</text>
-        <switch checked="{{memberSeeTeamTotal}}" bindchange="toggleTeamTotal" color="#4a7cf7" />
+        <switch checked="{{memberSeeTeamTotal}}" bindchange="toggleTeamTotal" color="#008c8c" />
       </view>
     </view>
 

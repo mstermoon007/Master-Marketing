@@ -35,6 +35,7 @@ def _team_public(team: dict) -> dict:
     return {
         "team_id": team.get("team_id"),
         "name": team.get("name"),
+        "owner_name": team.get("owner_name") or "",
         "workspace_id": team.get("workspace_id"),
         "department_id": team.get("department_id"),
         "role": team.get("member_role"),

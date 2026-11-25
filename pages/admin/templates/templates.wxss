@@ -47,7 +47,7 @@
 
 .act-arch {
   color: var(--warn);
-  background: #fdf4e7;
+  background: var(--accent-weak, #fff1e8);
 }
 
 .act-del {

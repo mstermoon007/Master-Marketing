@@ -49,14 +49,14 @@
   margin-top: 16rpx;
   padding: 20rpx 24rpx;
   border-radius: 16rpx;
-  background: #f0f4ff;
+  background: var(--cyan-white, #edfaf8);
   font-size: 28rpx;
   color: #1f2d3d;
 }
 
 .primary {
   margin-top: 48rpx;
-  background: #4a7cf7;
+  background: #008c8c;
   color: #ffffff;
   border-radius: 16rpx;
   font-size: 32rpx;
@@ -65,8 +65,8 @@
 .ghost {
   margin-top: 24rpx;
   background: #ffffff;
-  color: #4a7cf7;
-  border: 1rpx solid #4a7cf7;
+  color: #008c8c;
+  border: 1rpx solid #008c8c;
   border-radius: 16rpx;
   font-size: 32rpx;
 }

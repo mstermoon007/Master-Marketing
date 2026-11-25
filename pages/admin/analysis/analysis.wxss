@@ -106,7 +106,7 @@
 }
 
 .chip {
-  background: #f4f6fa;
+  background: var(--cyan-white, #edfaf8);
   border-radius: 12rpx;
   padding: 10rpx 14rpx;
   display: flex;

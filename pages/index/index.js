@@ -26,6 +26,28 @@ function hhmm() {
   return p(d.getHours()) + ':' + p(d.getMinutes())
 }
 
+function scopeText(scope) {
+  if (!scope || !scope.type || scope.type === 'all') return '全员'
+  if (scope.type === 'members') return '指定成员'
+  if (scope.type === 'roles') return '指定角色'
+  return '全员'
+}
+
+function buildTemplateOptions(list, member, active) {
+  return (list || []).filter(function (tpl) {
+    return store.inScope(tpl.scope, member)
+  }).map(function (tpl) {
+    return {
+      template_id: tpl.template_id,
+      name: tpl.name,
+      version: tpl.version,
+      fieldCount: (tpl.fields || []).length,
+      scopeText: scopeText(tpl.scope),
+      isActive: !!active && active.template_id === tpl.template_id && Number(active.version) === Number(tpl.version),
+    }
+  })
+}
+
 // 日期切换后的展示态集中计算，避免 Hero / 按钮 / 状态文案各算一套
 function buildDateView(date, entryExists, noTemplate) {
   const today = dateUtil.today()
@@ -67,13 +89,13 @@ Page({
     needTeam: false,
     noTemplate: false,
     loading: true,
-    memberName: '',
-    role: '',
     isManager: false,
     teamName: '',
+    creatorName: '',
     template: null,
     templateName: '',
     templateVersion: 0,
+    availableTemplates: [],
     initialValue: null,
     entryExists: false,
     submitting: false,
@@ -178,10 +200,9 @@ Page({
       authState: 'ready',
       needTeam: false,
       loading: false,
-      memberName: ctx.member.name,
-      role: ctx.member.role,
       isManager: manager,
       teamName: ctx.team.name,
+      creatorName: ctx.team.owner_name || '',
       adminLinks: adminLinks,
     })
     await this.loadForm(ctx)
@@ -223,10 +244,17 @@ Page({
       const tpl = await store.getActiveTemplate(ctx.team.team_id, ctx.member)
       if (!tpl) {
         this.setData(Object.assign(
-          { loading: false, noTemplate: true, template: null, initialValue: null, entryExists: false },
+          { loading: false, noTemplate: true, template: null, availableTemplates: [], initialValue: null, entryExists: false },
           buildDateView(date, false, true)
         ))
         return
+      }
+      let availableTemplates = []
+      try {
+        const effective = await store.getEffectiveTemplates(ctx.team.team_id, dateUtil.today())
+        availableTemplates = buildTemplateOptions(effective, ctx.member, tpl)
+      } catch (e) {
+        availableTemplates = []
       }
       const entry = await store.getMyEntry(ctx.team.team_id, date)
       let initialValue = null
@@ -262,13 +290,14 @@ Page({
         template: tpl,
         templateName: tpl.name,
         templateVersion: tpl.version,
+        availableTemplates: availableTemplates,
         initialValue: initialValue,
         entryExists: entryExists,
         hintText: hintText,
         errorText: '',
       }, buildDateView(date, entryExists, false)))
     } catch (e) {
-      this.setData({ loading: false, errorText: e.message || '加载失败' })
+      this.setData({ loading: false, availableTemplates: [], errorText: e.message || '加载失败' })
     }
   },
 

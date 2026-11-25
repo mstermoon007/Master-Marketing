@@ -1,15 +1,18 @@
 /* 全局样式：浅色主题 */
 page {
-  --brand: #4a7cf7;
-  --brand-weak: #eef3ff;
-  --text: #1f2430;
-  --text-sub: #6b7385;
-  --text-weak: #9aa2b1;
-  --bg: #f5f7fa;
+  --brand: #008c8c;
+  --brand-weak: #e6f7f5;
+  --accent: #f37021;
+  --accent-weak: #fff1e8;
+  --cyan-white: #edfaf8;
+  --text: #20302e;
+  --text-sub: #5f7470;
+  --text-weak: #8fa39f;
+  --bg: #f3faf8;
   --card: #ffffff;
-  --line: #e8ecf2;
-  --ok: #18a058;
-  --warn: #e6a23c;
+  --line: #dcece8;
+  --ok: #008c8c;
+  --warn: #f37021;
   --danger: #e5545c;
   background: var(--bg);
   color: var(--text);
@@ -75,7 +78,7 @@ page {
 }
 
 .input {
-  background: #f4f6fa;
+  background: var(--cyan-white);
   border-radius: 12rpx;
   padding: 18rpx 22rpx;
   font-size: 28rpx;
@@ -94,7 +97,7 @@ page {
 }
 
 .tag-warn {
-  background: #fdf4e7;
+  background: var(--accent-weak);
   color: var(--warn);
 }
 
@@ -104,7 +107,7 @@ page {
 }
 
 .tag-gray {
-  background: #eef0f4;
+  background: #e7eeec;
   color: var(--text-sub);
 }
 

@@ -70,7 +70,7 @@
 }
 
 .df-input {
-  background: #f4f6fa;
+  background: var(--cyan-white, #edfaf8);
   border-radius: 12rpx;
   padding: 18rpx 22rpx;
   font-size: 28rpx;
@@ -79,7 +79,7 @@
 }
 
 .df-textarea {
-  background: #f4f6fa;
+  background: var(--cyan-white, #edfaf8);
   border-radius: 12rpx;
   padding: 18rpx 22rpx;
   font-size: 28rpx;
@@ -89,7 +89,7 @@
 }
 
 .df-picker {
-  background: #f4f6fa;
+  background: var(--cyan-white, #edfaf8);
   border-radius: 12rpx;
   padding: 18rpx 22rpx;
   font-size: 28rpx;

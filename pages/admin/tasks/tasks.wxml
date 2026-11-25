@@ -58,7 +58,7 @@
         </view>
         <view class="form-row">
           <text class="form-label">仅工作日</text>
-          <switch checked="{{workdaysOnly}}" bindchange="onWorkdays" color="#4a7cf7" />
+          <switch checked="{{workdaysOnly}}" bindchange="onWorkdays" color="#008c8c" />
         </view>
       </view>
       <button class="btn-primary" loading="{{creating}}" disabled="{{creating}}" bindtap="onCreate">创建任务</button>

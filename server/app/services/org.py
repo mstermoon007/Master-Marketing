@@ -81,13 +81,22 @@ def workspaces_of_user(conn, uid: str) -> List[dict]:
 def team_context(conn, team_id: Optional[str]) -> Optional[dict]:
     if not team_id:
         return None
-    return db.get_doc_by_field(conn, "teams", "team_id", team_id)
+    row = db.one(
+        conn,
+        "SELECT t.*, om.name AS owner_name FROM `teams` t "
+        "LEFT JOIN `members` om ON om.team_id = t.team_id AND om.user_id = t.owner_uid "
+        "WHERE t.team_id = %s LIMIT 1",
+        (team_id,),
+    )
+    return db.row_to_dict(row, "teams")
 
 
 def teams_in_workspace(conn, workspace_id: str) -> List[dict]:
     rows = db.query(
         conn,
-        "SELECT * FROM `teams` WHERE workspace_id = %s ORDER BY created_at ASC, id ASC",
+        "SELECT t.*, om.name AS owner_name FROM `teams` t "
+        "LEFT JOIN `members` om ON om.team_id = t.team_id AND om.user_id = t.owner_uid "
+        "WHERE t.workspace_id = %s ORDER BY t.created_at ASC, t.id ASC",
         (workspace_id,),
     )
     return db.rows_to_dicts(rows, "teams")
@@ -96,8 +105,9 @@ def teams_in_workspace(conn, workspace_id: str) -> List[dict]:
 def teams_of_user_in_workspace(conn, uid: str, workspace_id: str) -> List[dict]:
     rows = db.query(
         conn,
-        "SELECT t.*, m.role AS member_role, m.status AS member_status "
+        "SELECT t.*, m.role AS member_role, m.status AS member_status, om.name AS owner_name "
         "FROM `teams` t JOIN `members` m ON m.team_id = t.team_id "
+        "LEFT JOIN `members` om ON om.team_id = t.team_id AND om.user_id = t.owner_uid "
         "WHERE t.workspace_id = %s AND m.user_id = %s AND m.status = 'active' "
         "ORDER BY t.created_at ASC, t.id ASC",
         (workspace_id, uid),

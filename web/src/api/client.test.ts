@@ -38,6 +38,7 @@ function mockResponse(body: unknown, init: MockInit = {}): Response {
 }
 
 let fetchMock: ReturnType<typeof vi.fn>
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
 
 beforeEach(() => {
   localStorage.clear()
@@ -69,7 +70,7 @@ describe('callApi', () => {
 
     expect(data).toEqual({ n: 1 })
     const [url, options] = fetchMock.mock.calls[0]
-    expect(url).toBe('/api')
+    expect(url).toBe(API_BASE + '/api')
     expect(options.method).toBe('POST')
     expect(options.headers.Authorization).toBe('Bearer t1')
     expect(JSON.parse(options.body)).toEqual({ action: 'listTemplates', teamId: 'T1' })
@@ -124,7 +125,7 @@ describe('扫码登录接口', () => {
     fetchMock.mockResolvedValue(mockResponse({ ok: true, data: ticket }))
 
     await expect(createTicket()).resolves.toEqual(ticket)
-    expect(fetchMock.mock.calls[0][0]).toBe('/auth/web/ticket')
+    expect(fetchMock.mock.calls[0][0]).toBe(API_BASE + '/auth/web/ticket')
   })
 
   it('createTicket 失败时抛出后端文案', async () => {

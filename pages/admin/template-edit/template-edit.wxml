@@ -50,7 +50,7 @@
         <view class="scope-block">
           <view class="scope-member" wx:for="{{memberOptions}}" wx:key="userId" wx:for-index="mIdx">
             <text>{{item.name}}</text>
-            <switch checked="{{memberChecks[item.userId]}}" data-idx="{{mIdx}}" bindchange="onMemberToggle" color="#4a7cf7" />
+            <switch checked="{{memberChecks[item.userId]}}" data-idx="{{mIdx}}" bindchange="onMemberToggle" color="#008c8c" />
           </view>
           <view wx:if="{{memberOptions.length === 0}}" class="empty">团队暂无成员</view>
         </view>
@@ -92,7 +92,7 @@
             </view>
             <view class="form-line">
               <text class="form-label">必填</text>
-              <switch checked="{{f.required}}" data-idx="{{fIdx}}" bindchange="onFieldRequired" color="#4a7cf7" />
+              <switch checked="{{f.required}}" data-idx="{{fIdx}}" bindchange="onFieldRequired" color="#008c8c" />
             </view>
           </view>
           <view class="form-line" wx:if="{{f.type === 'select' || f.type === 'multiselect'}}">
