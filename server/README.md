@@ -167,10 +167,10 @@ npm run build                   # 产物在 web/dist/
 ### 登录与权限
 
 - `POST /auth/web/ticket` 生成 5 分钟一次性票据并返回小程序码；Web 端 1.5 秒轮询状态。
-- 仅空间所有者可确认登录：`confirmWebLogin` 校验 `workspaces.owner_uid`（老数据回退 `teams.owner_uid`）。
+- 仅团队创建人/管理员及以上权限可确认登录：空间 owner/admin 或团队 owner/manager 可确认。
 - Web 令牌 `aud=web`、默认 12 小时；小程序令牌 `aud=mini`、30 天，二者互不通用。
 - Web 令牌只能调用 `handlers.WEB_ACTIONS` 白名单；`saveEntry` / `getMyEntry` / `listMyEntries` / `confirmWebLogin` 一律拒绝。
-- 每个 Web 请求仍按数据库实时校验空间 owner/admin，不信任令牌内嵌的空间列表。
+- 每个 Web 请求仍按数据库实时校验管理权限，不信任令牌内嵌的空间列表。
 - `access_token` 由 `services/wechat.py` 内存缓存，提前 300 秒刷新；微信原始错误码不下发客户端。
 
 ## 小程序端必须同步配置

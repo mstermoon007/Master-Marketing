@@ -7,11 +7,6 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# 系统依赖（PyMySQL 不需要，requests 纯 Python）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
-
 # 依赖
 COPY server/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt \

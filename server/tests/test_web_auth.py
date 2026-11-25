@@ -93,6 +93,24 @@ def test_api_allows_web_whitelisted_action(monkeypatch):
     assert called == {"uid": "openid-1", "action": "listMyWorkspaces"}
 
 
+def test_api_filters_web_workspaces_to_managed_spaces(monkeypatch):
+    monkeypatch.setattr(main.db, "connection", lambda: _Conn())
+    monkeypatch.setattr(
+        main, "dispatch",
+        lambda conn, uid, body: [
+            {"workspace": {"id": "W1"}}, {"workspace": {"id": "W2"}},
+        ],
+    )
+    monkeypatch.setattr(
+        main.web, "managed_workspaces",
+        lambda conn, uid: [{"id": "W2"}],
+    )
+    token = auth.issue_web_token("openid-1")
+    body = _body(main.api({"action": "listMyWorkspaces"}, "Bearer " + token))
+    assert body["ok"] is True
+    assert [item["workspace"]["id"] for item in body["data"]] == ["W2"]
+
+
 def test_api_keeps_mini_token_behavior(monkeypatch):
     called = {}
     monkeypatch.setattr(main.db, "connection", lambda: _Conn())

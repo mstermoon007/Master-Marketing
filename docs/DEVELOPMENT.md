@@ -209,9 +209,9 @@ action 元数据集中在 `app/handlers/registry.py`：每个 action 声明所�
 | 部门 | `listDepartments` | `store.listDepartments(workspaceId)` | 部门树（≤3 级） | 成员 |
 | 部门 | `createDepartment` | `store.createDepartment(workspaceId, name, parentId?, leaderUid?)` | 新建部门 | 空间管理员 |
 | 部门 | `updateDepartment` | `store.updateDepartment(workspaceId, id, patch)` | 改名 / 换上级 / 负责人 / 停用；移动校验深度与环路 | 空间管理员 |
-| Web | `confirmWebLogin` | `store.confirmWebLogin(ticket)` | 小程序确认扫码登录；仅空间 owner，票据一次性 | 小程序 token + 空间 owner |
-| Web | `getWorkspaceOverview` | `callApi('getWorkspaceOverview', {workspaceId})` | 工作台汇总：今日应提交/已提交/提交率、未提交、活跃任务、7 天趋势、近 7 天异常 | 空间 owner/admin |
-| Web | `listAuditLogs` | `callApi('listAuditLogs', {...})` | 审计分页；`workspace_id` 强制过滤，`LIMIT/OFFSET` 参数化 | 空间 owner/admin |
+| Web | `confirmWebLogin` | `store.confirmWebLogin(ticket)` | 小程序确认扫码登录；仅团队创建人及以上权限，票据一次性 | 小程序 token + 管理权限 |
+| Web | `getWorkspaceOverview` | `callApi('getWorkspaceOverview', {workspaceId})` | 工作台汇总：今日应提交/已提交/提交率、未提交、活跃任务、7 天趋势、近 7 天异常 | 团队 owner/manager 或空间 owner/admin |
+| Web | `listAuditLogs` | `callApi('listAuditLogs', {...})` | 审计分页；`workspace_id` 强制过滤，`LIMIT/OFFSET` 参数化 | 团队 owner/manager 或空间 owner/admin |
 | 通知 | `getSubscribeTemplates` | `store.getSubscribeTemplates()` | 返回服务端已配置的模板 ID，小程序订阅授权唯一来源 | 登录 |
 | 通知 | `getNotificationSettings` | `store.getNotificationSettings(teamId?)` | 本人在当前空间的四类订阅开关与模板配置状态 | 登录 / 本人 |
 | 通知 | `saveNotificationSettings` | `store.saveNotificationSettings(teamId, settings)` | 记录小程序授权结果；服务端只写本人，不接收客户端 user_id | 登录 / 本人 |
@@ -247,9 +247,9 @@ action 元数据集中在 `app/handlers/registry.py`：每个 action 声明所�
 
 1. Web 调 `/auth/web/ticket`，服务端生成 32 位 hex 一次性 ticket（5 分钟）并调用 `wxa/getwxacodeunlimit` 返回 PNG data URL。
 2. 小程序扫码进入 `pages/login-confirm/login-confirm`，展示「网页端请求登录」；用户点「确认登录」调用 `confirmWebLogin`。
-3. 服务端校验 `workspaces.owner_uid = uid`（老数据回退 `teams.owner_uid`），把 ticket 置为 `confirmed` 并记录可管理的空间快照。
+3. 服务端校验空间 owner/admin 或团队 owner/manager 权限，把 ticket 置为 `confirmed` 并记录可管理的空间快照。
 4. Web 每 1.5 秒轮询 `/auth/web/ticket/status`；看到 `confirmed` 时在同一事务内把 ticket 置为 `consumed` 并签发 `aud=web` 令牌（默认 12 小时）。
-5. 之后每个 `/api` 请求仍按数据库实时校验空间 owner/admin，**不信任令牌内嵌的空间列表**。
+5. 之后每个 `/api` 请求仍按数据库实时校验团队 owner/manager 或空间 owner/admin，**不信任令牌内嵌的空间列表**。
 
 - 小程序令牌 `aud=mini`（30 天）与 Web 令牌 `aud=web`（12 小时）互不通用；P5 之前签发、没有 `aud` 的旧令牌按 `mini` 处理。
 - Web 令牌只能调用 `server/app/handlers/__init__.py` 的 `WEB_ACTIONS` 白名单；`saveEntry` / `getMyEntry` / `listMyEntries` / `log` / `confirmWebLogin` 一律拒绝。
@@ -605,7 +605,7 @@ npm run build               # 类型检查 + 产物 web/dist/
 | T16 | 跨空间越权 | 用 A 空间账号直接请求 B 空间团队的 `teamId`（改包或改用例） | 读、写均返回业务错误，不泄露 B 空间数据 | P4 隔离 |
 | T17 | 通知骨架 | 不配 `WX_TMPL_*` 提交一条日报 → 查看 `notification_logs` | 记录 `status=skipped`、原因为「未配置订阅消息模板」，填报本身成功不受影响 | P6 通知 |
 | T18 | 通知去重 | 两个 gunicorn worker 同时触发同一周期提醒 | 同一 `(user_id, notify_type, period_key)` 只有一条记录，微信只收到一次 | P6 调度 |
-| T19 | Web 扫码登录 | 打开 `admin.modouyu.top` → 微信扫码 → 小程序内点「确认登录」 | Web 自动进入工作台；同一二维码重复轮询只发一次令牌；5 分钟后过期自动换码；非空间 owner 扫码提示「仅工作空间所有者可登录」 | P5 登录 |
+| T19 | Web 扫码登录 | 打开 `admin.modouyu.top` → 微信扫码 → 小程序内点「确认登录」 | Web 自动进入工作台；同一二维码重复轮询只发一次令牌；5 分钟后过期自动换码；非团队创建人/管理员扫码提示「仅团队创建人及以上权限人员可登录管理后台」 | P5 登录 |
 | T20 | Web 白名单与导出 | Web 登录后切换空间/团队，浏览组织/模板/任务/数据/分析/审计；在数据中心导出 Excel | 数据与小程序一致；导出列头/权限与列表一致；用 Web 令牌直接调 `saveEntry` 返回「Web 端无权调用该操作」 | P5 白名单 / 导出 |
 
 > T13 的输出建议整段贴回对话，便于按具体报错逐条收尾。

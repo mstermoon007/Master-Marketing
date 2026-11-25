@@ -69,6 +69,7 @@ services:
       # JWT 签名（必填）
       JWT_SECRET: ${JWT_SECRET:?请在 .env 设置 JWT_SECRET}
       JWT_TTL_DAYS: ${JWT_TTL_DAYS:-30}
+      WEB_ORIGIN: ${WEB_ORIGIN:-https://api.modouyu.top}
       # P6 消息通知（模板留空 = 只记录 skipped，不调微信）
       WX_TMPL_DAILY_REMIND: ${WX_TMPL_DAILY_REMIND:-}
       WX_TMPL_DUE_REMIND: ${WX_TMPL_DUE_REMIND:-}
@@ -87,7 +88,13 @@ services:
       mysql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)",
+        ]
       interval: 15s
       timeout: 5s
       retries: 5

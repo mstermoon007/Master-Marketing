@@ -24,15 +24,13 @@ def _ticket_row(**overrides):
     return row
 
 
-def _patch_confirm_db(monkeypatch, row, owner_spaces, legacy=None, id_spaces=None):
+def _patch_confirm_db(monkeypatch, row, managed_spaces):
     updates = []
 
     def fake_query(conn, sql, args=None):
-        if "FROM `teams`" in sql:
-            return legacy or []
-        if "WHERE id IN" in sql:
-            return id_spaces or []
-        return owner_spaces
+        if "FROM `workspaces`" in sql:
+            return managed_spaces
+        return []
 
     monkeypatch.setattr(web.db, "one", lambda *a, **k: row)
     monkeypatch.setattr(web.db, "query", fake_query)
@@ -59,17 +57,54 @@ def test_confirm_login_marks_ticket_and_returns_spaces(monkeypatch):
     assert updates[-1]["workspace_ids"] == ["W1", "W2"]
 
 
-def test_confirm_login_falls_back_to_legacy_team_owner(monkeypatch):
-    spaces = [{"id": "W9", "workspace_code": "W9", "name": "老数据空间"}]
-    legacy = [{"workspace_id": "W9"}]
-    _patch_confirm_db(monkeypatch, _ticket_row(), [], legacy, id_spaces=spaces)
-    result = web.confirm_web_login(None, "openid-owner", {"ticket": TICKET})
+def test_confirm_login_allows_team_owner_manager_and_workspace_admin(monkeypatch):
+    spaces = [{"id": "W9", "workspace_code": "W9", "name": "管理空间"}]
+    _patch_confirm_db(monkeypatch, _ticket_row(), spaces)
+    result = web.confirm_web_login(None, "openid-manager", {"ticket": TICKET})
     assert result["workspaces"][0]["id"] == "W9"
 
 
-def test_confirm_login_rejects_non_owner(monkeypatch):
-    _patch_confirm_db(monkeypatch, _ticket_row(), [], [])
-    with pytest.raises(BusinessError, match="所有者"):
+def test_managed_workspaces_query_includes_team_manager_roles(monkeypatch):
+    captured = {}
+
+    def fake_query(conn, sql, args=None):
+        captured["sql"] = sql
+        captured["args"] = args
+        return []
+
+    monkeypatch.setattr(web.db, "query", fake_query)
+    assert web.managed_workspaces(None, "openid-manager") == []
+    assert "m.role IN ('owner', 'manager')" in captured["sql"]
+    assert "wm.role IN ('owner', 'admin')" in captured["sql"]
+    assert captured["args"] == ("openid-manager",) * 4
+
+
+def test_require_managed_workspace_allows_team_manager(monkeypatch):
+    workspace = {"id": "W1", "owner_uid": "openid-owner"}
+    monkeypatch.setattr(web.org, "get_workspace", lambda conn, ws_id: workspace)
+    monkeypatch.setattr(web.org, "workspace_membership", lambda conn, uid, ws_id: None)
+    monkeypatch.setattr(web.db, "query", lambda conn, sql, args=None: [
+        {"team_owner_uid": "openid-owner", "member_role": "manager"}
+    ])
+    ws, membership = web._require_managed_workspace(None, "openid-manager", "W1")
+    assert ws["id"] == "W1"
+    assert membership["role"] == "manager"
+
+
+def test_require_managed_workspace_rejects_member(monkeypatch):
+    workspace = {"id": "W1", "owner_uid": "openid-owner"}
+    monkeypatch.setattr(web.org, "get_workspace", lambda conn, ws_id: workspace)
+    monkeypatch.setattr(web.org, "workspace_membership", lambda conn, uid, ws_id: None)
+    monkeypatch.setattr(web.db, "query", lambda conn, sql, args=None: [
+        {"team_owner_uid": "openid-owner", "member_role": "member"}
+    ])
+    with pytest.raises(BusinessError, match="创建人"):
+        web._require_managed_workspace(None, "openid-member", "W1")
+
+
+def test_confirm_login_rejects_non_manager(monkeypatch):
+    _patch_confirm_db(monkeypatch, _ticket_row(), [])
+    with pytest.raises(BusinessError, match="创建人"):
         web.confirm_web_login(None, "openid-member", {"ticket": TICKET})
 
 
@@ -94,7 +129,7 @@ def test_confirm_login_rejects_bad_ticket_format(monkeypatch):
 def test_overview_reuses_dataset_and_metrics(monkeypatch):
     monkeypatch.setattr(web.expected, "local_today", lambda: "2026-11-16")
     workspace = {"id": "W1", "workspace_code": "W1", "name": "一号空间"}
-    monkeypatch.setattr(web, "require_workspace_role", lambda conn, uid, ws_id: (
+    monkeypatch.setattr(web, "_require_managed_workspace", lambda conn, uid, ws_id: (
         workspace, {"role": "owner", "status": "active"}
     ))
     monkeypatch.setattr(web.org, "teams_in_workspace", lambda conn, ws_id: [
@@ -138,11 +173,11 @@ def test_overview_reuses_dataset_and_metrics(monkeypatch):
     assert result["teams"][0]["team_id"] == "T1"
 
 
-def test_overview_requires_workspace_manager(monkeypatch):
+def test_overview_requires_managed_permission(monkeypatch):
     def deny(conn, uid, ws_id):
-        raise BusinessError("需要工作空间管理员权限")
+        raise BusinessError("仅团队创建人及以上权限人员可登录管理后台")
 
-    monkeypatch.setattr(web, "require_workspace_role", deny)
+    monkeypatch.setattr(web, "_require_managed_workspace", deny)
     with pytest.raises(BusinessError):
         web.get_workspace_overview(None, "openid-member", {"workspaceId": "W1"})
 
@@ -150,7 +185,7 @@ def test_overview_requires_workspace_manager(monkeypatch):
 # ---------------------------------------------------------------- 审计
 
 def test_audit_forces_workspace_and_parameterizes(monkeypatch):
-    monkeypatch.setattr(web, "require_workspace_role", lambda conn, uid, ws_id: (
+    monkeypatch.setattr(web, "_require_managed_workspace", lambda conn, uid, ws_id: (
         {"id": "W1"}, {"role": "owner"}
     ))
     monkeypatch.setattr(web.db, "one", lambda *a, **k: {"c": 42})

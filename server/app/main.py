@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import auth, config, db, security
-from .handlers import MINI_ONLY_ACTIONS, WEB_ACTIONS, BusinessError, dispatch
+from .handlers import MINI_ONLY_ACTIONS, WEB_ACTIONS, BusinessError, dispatch, web
 from .services import scheduler, wechat
 
 logger = logging.getLogger("jinribao")
@@ -292,6 +292,12 @@ def api(
     try:
         with db.connection() as conn:
             data = dispatch(conn, uid, body)
+            if audience == "web" and action == "listMyWorkspaces" and isinstance(data, list):
+                allowed_ids = {ws["id"] for ws in web.managed_workspaces(conn, uid)}
+                data = [
+                    item for item in data
+                    if (item.get("workspace") or {}).get("id") in allowed_ids
+                ]
         return _json({"ok": True, "data": data})
     except BusinessError as e:
         return _json({"ok": False, "message": str(e)})

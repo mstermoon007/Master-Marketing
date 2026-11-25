@@ -3,9 +3,9 @@
 action：confirmWebLogin / getWorkspaceOverview / listAuditLogs
 
 - confirmWebLogin：仅小程序令牌可调用，把扫码票据标记为 confirmed；
-- getWorkspaceOverview：空间 owner/admin 的工作台汇总，指标必须复用
+- getWorkspaceOverview：团队创建人/管理员及以上权限的工作台汇总，指标必须复用
   services.dataset + services.metrics，不得另写口径；
-- listAuditLogs：空间 owner/admin 的审计分页，workspace_id 强制过滤。
+- listAuditLogs：同权限范围的审计分页，workspace_id 强制过滤。
 """
 import re
 from datetime import date as date_cls
@@ -13,7 +13,7 @@ from datetime import timedelta
 
 from .. import db
 from ..services import dataset, expected, metrics, org
-from .common import BusinessError, audit, require_date, require_workspace_role
+from .common import BusinessError, audit, require_date
 
 _TICKET_RE = re.compile(r"^[0-9a-f]{32}$")
 _MAX_PAGE_SIZE = 200
@@ -23,34 +23,58 @@ def _rate_text(rate):
     return "数据不足" if rate is None else "%.1f%%" % (rate * 100)
 
 
-def _owned_workspaces(conn, uid):
-    """当前用户作为 owner 的空间；老数据回退到 teams.owner_uid。"""
+def managed_workspaces(conn, uid):
     rows = db.query(
         conn,
-        "SELECT * FROM `workspaces` WHERE owner_uid = %s "
-        "ORDER BY created_at ASC, id ASC",
-        (uid,),
-    )
-    if rows:
-        return db.rows_to_dicts(rows, "workspaces")
-
-    legacy = db.query(
-        conn,
-        "SELECT DISTINCT workspace_id FROM `teams` "
-        "WHERE owner_uid = %s AND workspace_id IS NOT NULL AND workspace_id <> ''",
-        (uid,),
-    )
-    ids = [r.get("workspace_id") for r in legacy if r.get("workspace_id")]
-    if not ids:
-        return []
-    placeholders = ", ".join(["%s"] * len(ids))
-    rows = db.query(
-        conn,
-        "SELECT * FROM `workspaces` WHERE id IN (%s) ORDER BY created_at ASC, id ASC"
-        % placeholders,
-        tuple(ids),
+        "SELECT w.* FROM `workspaces` w "
+        "WHERE w.owner_uid = %s "
+        "OR EXISTS (SELECT 1 FROM `workspace_members` wm "
+        "WHERE wm.workspace_id = w.id AND wm.user_id = %s "
+        "AND wm.status = 'active' AND wm.role IN ('owner', 'admin')) "
+        "OR EXISTS (SELECT 1 FROM `teams` t "
+        "WHERE t.workspace_id = w.id AND (t.owner_uid = %s OR EXISTS ("
+        "SELECT 1 FROM `members` m WHERE m.team_id = t.team_id AND m.user_id = %s "
+        "AND m.status = 'active' AND m.role IN ('owner', 'manager')))) "
+        "ORDER BY w.created_at ASC, w.id ASC",
+        (uid, uid, uid, uid),
     )
     return db.rows_to_dicts(rows, "workspaces")
+
+
+def _role_in_workspace(conn, uid, workspace):
+    if workspace.get("owner_uid") == uid:
+        return "owner"
+
+    membership = org.workspace_membership(conn, uid, workspace["id"])
+    if (membership and membership.get("status") == "active"
+            and membership.get("role") in org.WORKSPACE_MANAGER_ROLES):
+        return membership.get("role")
+
+    rows = db.query(
+        conn,
+        "SELECT t.owner_uid AS team_owner_uid, m.role AS member_role "
+        "FROM `teams` t "
+        "LEFT JOIN `members` m ON m.team_id = t.team_id AND m.user_id = %s "
+        "AND m.status = 'active' "
+        "WHERE t.workspace_id = %s AND (t.owner_uid = %s OR m.id IS NOT NULL)",
+        (uid, workspace["id"], uid),
+    )
+    for row in rows:
+        if row.get("team_owner_uid") == uid or row.get("member_role") == "owner":
+            return "owner"
+        if row.get("member_role") == "manager":
+            return "manager"
+    return None
+
+
+def _require_managed_workspace(conn, uid, workspace_id):
+    workspace = org.get_workspace(conn, workspace_id)
+    if not workspace:
+        raise BusinessError("工作空间不存在")
+    role = _role_in_workspace(conn, uid, workspace)
+    if role not in ("owner", "admin", "manager"):
+        raise BusinessError("仅团队创建人及以上权限人员可登录管理后台")
+    return workspace, {"role": role, "status": "active"}
 
 
 def _public_workspace(ws):
@@ -80,9 +104,9 @@ def confirm_web_login(conn, uid, p):
         db.update(conn, "web_login_tickets", row["id"], {"status": "expired"})
         raise BusinessError("二维码已过期，请刷新后重试")
 
-    spaces = _owned_workspaces(conn, uid)
+    spaces = managed_workspaces(conn, uid)
     if not spaces:
-        raise BusinessError("仅工作空间所有者可登录管理后台")
+        raise BusinessError("仅团队创建人及以上权限人员可登录管理后台")
 
     workspace_ids = [ws["id"] for ws in spaces]
     db.update(conn, "web_login_tickets", row["id"], {
@@ -122,7 +146,7 @@ def _sum_daily(team_days):
 
 
 def get_workspace_overview(conn, uid, p):
-    workspace, membership = require_workspace_role(conn, uid, p.get("workspaceId"))
+    workspace, membership = _require_managed_workspace(conn, uid, p.get("workspaceId"))
     today = expected.local_today()
     from_day = (date_cls.fromisoformat(today) - timedelta(days=6)).strftime("%Y-%m-%d")
 
@@ -199,7 +223,7 @@ def _int(value, default, lo, hi):
 
 
 def list_audit_logs(conn, uid, p):
-    workspace, _ = require_workspace_role(conn, uid, p.get("workspaceId"))
+    workspace, _ = _require_managed_workspace(conn, uid, p.get("workspaceId"))
 
     where = ["workspace_id = %s"]
     args = [workspace["id"]]
